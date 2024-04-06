@@ -92,6 +92,10 @@ class LSTBuilderGUI(Frame):
         self.UserName = StringVar()
         self.PackName = StringVar()
 
+        # Define the aircraft and ground object name based on the DAT file.
+        self.AircraftName = StringVar(value='AIRCRAFT_NAME')
+        self.GroundObjectName = StringVar(value='GROUND_OBJECT_NAME')
+
         # Define storage of the different LST file contents
         self.AircraftContents = list()
         self.GroundContents = list()
@@ -226,9 +230,43 @@ class LSTBuilderGUI(Frame):
         
         # Aircraft Edit Section         
         AircraftEditFrame = Frame(AircraftFrame)
-        AircraftEditButtonFrame = Frame(AircraftEditFrame)
+        AircraftEntryFrame = Frame(AircraftEditFrame)
+        row_num = 0
+        Label(AircraftEntryFrame, textvariable=self.AircraftName).grid(row=row_num, column=0, columnspan=3)
+
+        row_num += 1
+        Label(AircraftEntryFrame, text="DAT File:").grid(row=row_num, column=0, sticky="W")
+        Entry(AircraftEntryFrame, textvariable=self.air_dat_fpath, width=30).grid(row=row_num, column=1, sticky="WE")
+        Button(AircraftEntryFrame, text="Select").grid(row=row_num, column=2, sticky="NSWE")  # TODO Add Command
+
+        row_num += 1
+        Label(AircraftEntryFrame, text="DNM File:").grid(row=row_num, column=0, sticky="W")
+        Entry(AircraftEntryFrame, textvariable=self.air_dat_fpath, width=30).grid(row=row_num, column=1, sticky="WE")
+        Button(AircraftEntryFrame, text="Select").grid(row=row_num, column=2, sticky="NSWE")  # TODO Add Command
+
+        row_num += 1
+        Label(AircraftEntryFrame, text="Collision File:").grid(row=row_num, column=0, sticky="W")
+        Entry(AircraftEntryFrame, textvariable=self.air_dat_fpath, width=30).grid(row=row_num, column=1, sticky="WE")
+        Button(AircraftEntryFrame, text="Select").grid(row=row_num, column=2, sticky="NSWE")  # TODO Add Command
+
+        row_num += 1
+        Label(AircraftEntryFrame, text="Cockpit File:").grid(row=row_num, column=0, sticky="W")
+        Entry(AircraftEntryFrame, textvariable=self.air_dat_fpath, width=30).grid(row=row_num, column=1, sticky="WE")
+        Button(AircraftEntryFrame, text="Select").grid(row=row_num, column=2, sticky="NSWE")  # TODO Add Command
+
+        row_num += 1
+        Label(AircraftEntryFrame, text="Coarse File:").grid(row=row_num, column=0, sticky="W")
+        Entry(AircraftEntryFrame, textvariable=self.air_dat_fpath, width=30).grid(row=row_num, column=1, sticky="WE")
+        Button(AircraftEntryFrame, text="Select").grid(row=row_num, column=2, sticky="NSWE")  # TODO Add Command
+        AircraftEntryFrame.pack()
 
         
+        AircraftEditButtonFrame = Frame(AircraftEditFrame)
+        Button(AircraftEditButtonFrame, text="Save").grid(row=0,column=0, sticky="NSWE")
+        Button(AircraftEditButtonFrame, text="Clear All Inputs").grid(row=0,column=1, sticky="NSWE")
+        AircraftEditButtonFrame.pack()
+        
+        AircraftEditFrame.pack(side='right')
         AircraftFrame.pack()
         
 
@@ -279,10 +317,34 @@ class LSTBuilderGUI(Frame):
 
 
 
-    def select_file(self, file_position):
-        """Select the file for the indicated position."""
+    def select_file(self, file_position, mode):
+        """Select the file for the indicated position.
+
+        Inputs
+        file_position (int): an integer of range 0-4 that indicates what position in the LST File the file being selected is for
+        mode (str): 'Aircraft', 'Ground', 'Scenery'
+
+        Outputs
+        None - This function will set the appropriate variables in the class.
+        
+        """
+
+        # Validate inputs:
+        if isinstance(file_position, int) is True:
+            if file_position < 0 or file_position > 4:
+                raise ValueError("{} Found that input [file_position] was not 0-4".format(__name__))
+        else:
+            raise TypeError("{} Expects input [file_position] to be an integer".format(__name__))
+
+        if isinstance(mode, str) is True:
+            if mode in self.lst_mode_options is False:
+                raise ValueError("{} Found that input [mode] was not 'Aircraft', 'Ground', or 'Scenery'".format(__name__))
+        else:
+            raise TypeError("{} Expects input [mode] to be a string".format(__name__))
+
+        
         # Get the prompt
-        prompt = self.prompts[self.LstMode.get()][file_position]
+        prompt = self.prompts[mode][file_position]
 
         # Get the filetypes that are allowed for this position.
         gui_filetype = list() 
@@ -295,6 +357,16 @@ class LSTBuilderGUI(Frame):
 
         # Get the filepath using GUI
         path = filedialog.askdirectory(parent=parent, title=prompt, initialdir=starting_directory, filetypes=gui_filetype)
+
+        # Validate the path
+        if isinstance(path, str) is False:
+            return
+        else:
+            if path == "":
+                return
+
+        # Set the appropriate variables
+        
 
         # Set the filepath if a valid filepath is returned.
         # TODO:  figure out if there is a better way to handle this.
@@ -313,25 +385,139 @@ class LSTBuilderGUI(Frame):
     
        
     
-class AircraftElement:
-    def __init__(self):
-        # Define filepaths to the various files.
-        self.dat = ""  
-        self.visual = ""
-        self.collision = ""
-        self.coarse = ""
-        self.cockpit = ""
-
-    def load_lst(self, line):
-        """Parse an lst file line into an aircraft element"""
+"""
+================ LST Classes ===================
+"""
 
 
-    def assign(self, dat, visual, collision, cockpit, coarse):
-        self.dat = dat
-        self.visual = visual
-        self.collision = collision
-        self.cockpit = cockpit
-        self.coarse = coarse
+@dataclass
+class AirLSTLine:
+    """
+    Aircraft LST Line
+
+    Models a single line of an Aircraft LST file.
+
+    Parameters:
+        dat:
+          The aircraft dat file.
+        dnm:
+          The aircraft dnm file.
+        collision_srf:
+          The aircraft collision srf file.
+        cockpit_srf:
+          The aircraft cockpit srf file. Not required.
+        coarse_dnm:
+          The aircraft coarse dnm file. Not required.
+    """
+    dat: os.PathLike
+    dnm: os.PathLike
+    collision_srf: os.PathLike
+    cockpit_srf: os.PathLike = None
+    coarse_dnm: os.PathLike = None
+
+    def get_csv_line(self):
+        return [PosixPath(self.a) if self.a is not None else "" for a in self.__dict__.keys()]
+
+
+@dataclass
+class GroundLSTLine:
+    """
+    Ground LST Line
+
+    Models a single line of a Ground LST file.
+
+    Parameters:
+        dat:
+          The ground object dat file.
+        dnm:
+          The ground object dnm file.
+        collision_srf:
+          The ground object collision srf file.
+        cockpit_srf:
+          The ground object cockpit srf file. Not required.
+        coarse_dnm:
+          The ground object coarse dnm file. Not required.
+
+    """
+
+    dat: os.PathLike
+    dnm: os.PathLike
+    collision_srf: os.PathLike
+    cockpit_srf: os.PathLike = None
+    coarse_dnm: os.PathLike = None
+
+    def get_csv_line(self):
+        return [PosixPath(self.a) if self.a is not None else "" for a in self.__dict__.keys()]
+
+
+@dataclass
+class SceneryLSTLine:
+    """
+    Scenery LST Line
+
+    Models a single line of a Scenery LST file.
+
+    """
+    name: str
+    fld: os.PathLike
+    stp: os.PathLike
+    mission_file: os.PathLike = None
+    game_mode: bool = False
+
+    def get_csv_line(self):
+        return [PosixPath(self.a) if self.a is not None else "" for a in self.__dict__.keys()]
+
+
+class LSTType(Enum):
+    AIRCRAFT = 'Aircraft'
+    GROUND = 'Ground'
+    SCENERY = 'Scenery'
+
+class LSTFile:
+    def __init__(self, lines: Union[List[AirLSTLine], List[GroundLSTLine], List[SceneryLSTLine]], lst_type: LSTType = None) -> None:
+        if len(lines) == 0 and lst_type is None:
+            raise ValueError("Must set LST file type if no lines are provided.")
+        if isinstance(lines[0], AirLSTLine) and lst_type is not None and lst_type != LSTType.AIRCRAFT:
+            raise ValueError("Aircraft lines were provided but declared as type: {}".format(lst_type))
+        if isinstance(lines[0], GroundLSTLine) and lst_type is not None and lst_type != LSTType.GROUND:
+            raise ValueError("Ground lines were provided but declared as type: {}".format(lst_type))
+        if isinstance(lines[0], SceneryLSTLine) and lst_type is not None and lst_type != LSTType.SCENERY:
+            raise ValueError("Scenery lines were provided but declared as type: {}".format(lst_type))
+
+        self.lines = lines
+
+    @staticmethod
+    def from_file(filepath: os.PathLike):
+
+        lst_type = determine_lst_type_from_filename(filepath)
+
+        with open(filepath, "r", encoding="utf-8") as file:
+            csv_reader = csv.reader(file, delimiter=" ", quotechar="\"")
+
+            lines = []
+
+            for line_number, line in enumerate(csv_reader):
+                try:
+                    if len(line) == 0:
+                        continue  # Empty line, skip
+                    if lst_type == LSTType.AIRCRAFT:
+                        lines.append(AirLSTLine(**line))
+                    elif lst_type == LSTType.GROUND:
+                        lines.append(GroundLSTLine(**line))
+                    elif lst_type == LSTType.SCENERY:
+                        lines.append(SceneryLSTLine(**line))
+                    else:
+                        raise ValueError(f"Unrecognized LST type: {lst_type}")
+                except ValueError as e:
+                    raise ValueError(f"Fatal error when reading file '{filepath}', line {line_number + 1}: {e.message}")
+            return LSTFile(lines=lines, lst_type=lst_type)
+
+    def write_file(self, filepath: os.PathLike):
+        with open(filepath, "w", encoding="utf-8") as file:
+            csv_writer = csv.writer(file, delimiter=" ", quotechar="\"", quoting=csv.QUOTE_ALL)
+
+            csv_writer.writerows([line.get_csv_line() for line in self.lines])
+
 
     
     
