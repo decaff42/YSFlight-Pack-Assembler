@@ -24,6 +24,7 @@ __license__ = """Only non-commercial use with attribution is allowed without pri
 import csv
 from dataclasses import dataclass
 from enum import Enum
+from pathlib import PosixPath
 # Import standard Python Modules
 from tkinter import filedialog, messagebox
 from tkinter import *
@@ -61,7 +62,7 @@ class AirLSTLine:
     coarse_dnm: os.PathLike = None
 
     def get_csv_line(self):
-        return [self.a if self.a is not None else "" for a in self.__dict__.keys()]
+        return [PosixPath(self.a) if self.a is not None else "" for a in self.__dict__.keys()]
 
 
 @dataclass
@@ -92,7 +93,7 @@ class GroundLSTLine:
     coarse_dnm: os.PathLike = None
 
     def get_csv_line(self):
-        return [self.a if self.a is not None else "" for a in self.__dict__.keys()]
+        return [PosixPath(self.a) if self.a is not None else "" for a in self.__dict__.keys()]
 
 
 @dataclass
@@ -107,11 +108,10 @@ class SceneryLSTLine:
     fld: os.PathLike
     stp: os.PathLike
     mission_file: os.PathLike = None
-    is_airrace: bool = False
+    game_mode: bool = False
 
     def get_csv_line(self):
-        return ([self.a if self.a is not None else "" for a in self.__dict__.keys() if not a == 'is_airrace'] +
-                ['airrace' if self.is_airrace else ''])
+        return [PosixPath(self.a) if self.a is not None else "" for a in self.__dict__.keys()]
 
 
 class LSTType(Enum):
