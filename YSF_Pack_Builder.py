@@ -15,26 +15,273 @@ It assumes the following:
 
 """
 
-
 __title__ = "YSFlight LST File Builder"
 __version__ = "0.1.0"
 __author__ = "Decaff42"
 __copyright__ = "2024 by Decaff_42"
 __license__ = """Only non-commercial use with attribution is allowed without prior written permission from Decaff_42."""
 
-
+import csv
+from dataclasses import dataclass
+from enum import Enum
 # Import standard Python Modules
 from tkinter import filedialog, messagebox
 from tkinter import *
+import tkinter as tk
 import os
+from typing import Union, List
 
+
+
+
+"""
+================ Classes ===================
+"""
+
+
+
+
+@dataclass
+class AirLSTLine:
+    """
+    Aircraft LST Line
+
+    Models a single line of an Aircraft LST file.
+
+    Parameters:
+        dat:
+          The aircraft dat file.
+        dnm:
+          The aircraft dnm file.
+        collision_srf:
+          The aircraft collision srf file.
+        cockpit_srf:
+          The aircraft cockpit srf file. Not required.
+        coarse_dnm:
+          The aircraft coarse dnm file. Not required.
+    """
+    dat: os.PathLike
+    dnm: os.PathLike
+    collision_srf: os.PathLike
+    cockpit_srf: os.PathLike = None
+    coarse_dnm: os.PathLike = None
+
+    def get_csv_line(self):
+        return [self.a if self.a is not None else "" for a in self.__dict__.keys()]
+
+
+@dataclass
+class GroundLSTLine:
+    """
+    Ground LST Line
+
+    Models a single line of a Ground LST file.
+
+    Parameters:
+        dat:
+          The ground object dat file.
+        dnm:
+          The ground object dnm file.
+        collision_srf:
+          The ground object collision srf file.
+        cockpit_srf:
+          The ground object cockpit srf file. Not required.
+        coarse_dnm:
+          The ground object coarse dnm file. Not required.
+
+    """
+
+    dat: os.PathLike
+    dnm: os.PathLike
+    collision_srf: os.PathLike
+    cockpit_srf: os.PathLike = None
+    coarse_dnm: os.PathLike = None
+
+    def get_csv_line(self):
+        return [self.a if self.a is not None else "" for a in self.__dict__.keys()]
+
+
+@dataclass
+class SceneryLSTLine:
+    """
+    Scenery LST Line
+
+    Models a single line of a Scenery LST file.
+
+    """
+    name: str
+    fld: os.PathLike
+    stp: os.PathLike
+    mission_file: os.PathLike = None
+    is_airrace: bool = False
+
+    def get_csv_line(self):
+        return ([self.a if self.a is not None else "" for a in self.__dict__.keys() if not a == 'is_airrace'] +
+                ['airrace' if self.is_airrace else ''])
+
+
+class LSTType(Enum):
+    AIRCRAFT = 'Aircraft'
+    GROUND = 'Ground'
+    SCENERY = 'Scenery'
+
+class LSTFile:
+    def __init__(self, lines: Union[List[AirLSTLine], List[GroundLSTLine], List[SceneryLSTLine]], lst_type: LSTType = None) -> None:
+        if len(lines) == 0 and lst_type is None:
+            raise ValueError("Must set LST file type if no lines are provided.")
+        if isinstance(lines[0], AirLSTLine) and lst_type is not None and lst_type != LSTType.AIRCRAFT:
+            raise ValueError("Aircraft lines were provided but declared as type: {}".format(lst_type))
+        if isinstance(lines[0], GroundLSTLine) and lst_type is not None and lst_type != LSTType.GROUND:
+            raise ValueError("Ground lines were provided but declared as type: {}".format(lst_type))
+        if isinstance(lines[0], SceneryLSTLine) and lst_type is not None and lst_type != LSTType.SCENERY:
+            raise ValueError("Scenery lines were provided but declared as type: {}".format(lst_type))
+
+        self.lines = lines
+
+    @staticmethod
+    def from_file(filepath: os.PathLike):
+
+        lst_type = determine_lst_type_from_filename(filepath)
+
+        with open(filepath, "r", encoding="utf-8") as file:
+            csv_reader = csv.reader(file, delimiter=" ", quotechar="\"")
+
+            lines = []
+
+            for line_number, line in enumerate(csv_reader):
+                try:
+                    if len(line) == 0:
+                        continue  # Empty line, skip
+                    if lst_type == LSTType.AIRCRAFT:
+                        lines.append(AirLSTLine(**line))
+                    elif lst_type == LSTType.GROUND:
+                        lines.append(GroundLSTLine(**line))
+                    elif lst_type == LSTType.SCENERY:
+                        lines.append(SceneryLSTLine(**line))
+                    else:
+                        raise ValueError(f"Unrecognized LST type: {lst_type}")
+                except ValueError as e:
+                    raise ValueError(f"Fatal error when reading file '{filepath}', line {line_number + 1}: {e.message}")
+            return LSTFile(lines=lines, lst_type=lst_type)
+
+    def write_file(self, filepath: os.PathLike):
+        with open(filepath, "w", encoding="utf-8") as file:
+            csv_writer = csv.writer(file, delimiter=" ", quotechar="\"")
+
+            csv_writer.writerows([line.get_csv_line() for line in self.lines])
+
+
+class ProgramState:
+    """
+    Encodes the global program state.
+    """
+    open_lst_file_location: os.PathLike = None
+    open_lst_file: LSTFile = None
+
+    root_window = None
+
+    def __init__(self, root_window):
+        self.root_window = root_window
+
+
+
+
+
+"""
+
+============== Utilities ================
+
+"""
+
+def determine_lst_type_from_filename(path: os.PathLike):
+    filename = os.path.split(path)[-1]
+
+    fname, ext = os.path.splitext(filename)
+    if ext.lower() != "lst":
+        raise ValueError(f"File with location {path} must have the file extension '.lst'")
+
+    if filename.lower().startswith("air"):
+        return LSTType.AIRCRAFT
+    if filename.lower().startswith("gro"):
+        return LSTType.GROUND
+    if filename.lower().startswith("sce"):
+        return LSTType.SCENERY
+    else:
+        raise ValueError(f"Could not determine type of LST file with path {path}. "
+                         f"LST file names MUST start with 'air', 'gro' or 'sce'.")
+
+def open_file():
+    """
+    Opens a file dialog to choose an LST file for editing.
+
+    Then, creates a LSTEditWindow.
+
+    MUST set program_state.open_lst_file_location and program_state.open_lst_file
+    """
+    file_name = None
+    global program_state  # Fetch global program state.
+
+    with tk.filedialog.askopenfile() as file:
+        file_name = file.name
+
+    new_program_state = ProgramState(program_state.root_window)  # New program state that will replace old state on success.
+
+    try:
+        determine_lst_type_from_filename(file_name)
+        new_program_state.open_lst_file = LSTFile.from_file(file_name)
+        new_program_state.open_lst_file_location = file_name
+
+
+        LSTBuilderGUI(program_state.root_window, __title__, __version__, __author__, __copyright__)
+
+        program_state = new_program_state  # Operation was successful, so replace the global program state.
+
+    except ValueError as e:
+        tk.messagebox.showerror("Error when opening LST File", str(e))
+
+
+
+
+
+
+
+
+def save_file():
+    """
+    Saves the lst file to the currently open file, silently.
+
+    Then, creates a LSTEditWindow.
+    """
+    pass
+
+
+def save_as_new_file():
+    """
+    Shows a dialog for saving the file to a (different) file.
+    :return:
+    """
+    pass
 
 
 def main():
     root = Tk()
     root.withdraw()
 
-    LSTBuilderGUI(root, __title__, __version__, __author__, __copyright__)
+    MenuBar = tk.Menu(root, tearoff=False)  # Create the main menu
+    root.config(menu=MenuBar)  # Assign it to the root
+
+    global program_state  # Ensures the program state is accessible globally
+    program_state = ProgramState(root)  # Initialize the program state. TODO: Add option to open file from command line directly from program args.
+
+    # File Menu Bar
+    FileOption = tk.Menu(MenuBar, tearoff=False)
+    MenuBar.add_cascade(label="File", menu=FileOption, underline=0)
+    FileOption.add_command(label="Open...", command=open_file, accelerator="Ctrl+o")
+    FileOption.add_command(label="Save", command=save_file, accelerator="Ctrl+s")
+    FileOption.add_command(label="Save as...", command=save_as_new_file, accelerator="Ctrl+Shift+s")
+    FileOption.add_command(label="Quit", command=exit, accelerator="Ctrl+q")
+
+    # LSTBuilderGUI(root, __title__, __version__, __author__, __copyright__)
 
     root.deiconify()
     root.mainloop()
@@ -48,7 +295,7 @@ class LSTBuilderGUI(Frame):
         self.version = version
         self.author = author
         self.copyright_notice = copyright_notice
-        
+
         # Define other class parameters
         self.filepath1 = StringVar()
         self.filepath2 = StringVar()
@@ -61,13 +308,13 @@ class LSTBuilderGUI(Frame):
         self.filelabel4 = StringVar()
         self.filelabel5 = StringVar()
         self.SceneryName = StringVar()
-        
-        
+
+
         self.lst_mode = StringVar(value="Aircraft")  # other options are Scenery and Ground
         self.lst_mode_options = ['Aircraft', 'Ground', 'Scenery']
         self.folderpath = StringVar()
         self.filepaths = list()
-        
+
         # Define filetypes for GUIs
         filetypes = dict()
         filetypes['srf'] = [("SRF File", "*.srf")]
@@ -93,46 +340,46 @@ class LSTBuilderGUI(Frame):
         prompts['Scenery'] = ["Select The Scenery's FLD File",
                               "Select The Scenery's Start Position File",
                               "Select The Scenery's Mission File"]
-        self.prompts = prompts        
-        
+        self.prompts = prompts
+
         # Define required files
         required_files = dict()
         required_files['Aircraft'] = [True, True, True, False, False]
         required_files['Scenery'] = [True, True, False, None, None]
         required_files['Ground'] = [True, True, True, False, False]
         self.required_files = required_files
-        
+
         # Define Labels
         labels = dict()
         labels['Aircraft'] = ['DAT', 'Visual Model', 'Collision', 'Cockpit', 'Coarse']
         labels['Ground'] = ['DAT', 'Visual Model', 'Collision', 'Cockpit', 'Coarse']
         labels['Scenery'] = ['Map', 'Start Position', 'Mission', '', '']
         self.labels = labels
-        
+
         lst_filetypes = dict()
         lst_filetypes['Aircraft'] = ['dat', ['dnm', 'srf'], ['dnm', 'srf'], ['dnm', 'srf'], ['dnm', 'srf']]
         lst_filetypes['Ground'] = ['dat', ['dnm', 'srf'], ['dnm', 'srf'], ['dnm', 'srf'], ['dnm', 'srf']]
         lst_filetypes['Scenery'] = ['fld', 'stp', 'yfs', '', '']
         self.lst_filetypes = lst_filetypes
-        
-        
-        
+
+
+
         # Setup the GUI
         self.gui_setup()
-        
-        
+
+
     def gui_setup(self):
         """Create the User Interface"""
         # Window Title
         self.parent.wm_title(__title__ + " v" + __version__)
-        
+
         # Window Geometry Controls
         self.parent.wm_resizable(width=True, height=True)
         self.parent.minsize(self.parent.winfo_width() + 100, self.parent.winfo_height() + 150)
-        
+
         # Window Order
         self.parent.wm_attributes('-topmost', 1)
-        
+
         # Setup the Frames
         MainFrame = Frame()
         PackFrame = LabelFrame(MainFrame, text="Pack Details")
@@ -140,16 +387,16 @@ class LSTBuilderGUI(Frame):
         PreviewFrame = Frame(EditFrame)
         SelectFrame = Frame(EditFrame)
         ButtonFrame = Frame(MainFrame)
-        
+
         # Setup the Pack Frame
         pack_label = Label(PackFrame, text="Pack Folder: ")
         pack_label.grid(row=0, column=0, sticky="W")
         pack_filepath_display = Entry(PackFrame, textvariable=self.folderpath, width=40).grid(row=0, column=1, sticky="WE")
         pack_button = Button(PackFrame, text="Select Pack Folder", command=self.select_pack_directory).grid(row=0, column=2)
-        
+
         lst_type = Label(PackFrame, text="LST Type:").grid(row=1, column=0)
         lst_type_selection = OptionMenu(PackFrame, self.lst_mode, *self.lst_mode_options).grid(row=1, column=1, columnspan=2)
-        
+
         # Setup the File Selection Frame
         row_num = 0
         self.scenery_name_label = Label(EditFrame, text="Scenery Name")
@@ -164,7 +411,7 @@ class LSTBuilderGUI(Frame):
         self.file1_entry.grid(row=row_num, column=1, sticky="WE")
         self.button1 = Button(EditFrame, text="Select File", command=lambda: self.select_file(0))
         self.button1.grid(row=row_num, column=2, stick="WE")
-        
+
 
         row_num += 1
         self.file2_label = Label(EditFrame, text=self.labels[self.lst_mode.get()][1])
@@ -199,9 +446,9 @@ class LSTBuilderGUI(Frame):
         self.button5.grid(row=row_num, column=2, stick="WE")
 
 
-        
 
-        
+
+
         # Pack up the frames
         MainFrame.pack()
         PackFrame.pack()
@@ -209,8 +456,8 @@ class LSTBuilderGUI(Frame):
         PreviewFrame.grid(row=0, column=0)
         SelectFrame.grid(row=0, column=1)
         ButtonFrame.pack()
-        
-        
+
+
 
     def update_lst_type(self):
         pass
@@ -220,10 +467,10 @@ class LSTBuilderGUI(Frame):
         # Determine which fields can be disabled based on the lst filetype selection
 
         # Disable Buttons that should not be used
-        
-        
-        
-    
+
+
+
+
     def select_pack_directory(self):
         """Have the user select the pack directory, with the standard sub folders for aircraft, user, etc"""
         prompt = "Please select the folder where you have built your addon package."
@@ -263,16 +510,15 @@ class LSTBuilderGUI(Frame):
             elif file_position == 4:
                 self.filepath5.set(path)
 
-    
-       
-    
-    
-    
-    
-        
-        
-        
-        
+
+
+
+
+
+
+
+
+
+
 if __name__ == "__main__":
     main()
-    
