@@ -16,7 +16,7 @@ It assumes the following:
 """
 
 
-__title__ = "YSFlight LST File Builder"
+__title__ = "YSFlight Pack Builder"
 __version__ = "0.1.0"
 __author__ = "Decaff42"
 __copyright__ = "2024 by Decaff_42"
@@ -25,7 +25,9 @@ __license__ = """Only non-commercial use with attribution is allowed without pri
 
 # Import standard Python Modules
 from tkinter import filedialog, messagebox
+from tkinter import ttk
 from tkinter import *
+from tkinter.ttk import *
 import os
 
 
@@ -48,27 +50,58 @@ class LSTBuilderGUI(Frame):
         self.version = version
         self.author = author
         self.copyright_notice = copyright_notice
+
+        # Define filepaths that the user selects for the lst contents - These are Absolute Paths
+        self.aircraft_paths = ['', '', '', '', '']
+        self.ground_paths = ['', '', '', '', '']
+        self.scenery_paths = ['', '', '']
+
+        # Aircraft paths
+        self.air_dat_fpath = StringVar()
+        self.air_visual_fpath = StringVar()
+        self.air_collision_fpath = StringVar()
+        self.air_cockpit_fpath = StringVar()
+        self.air_coarse_fpath = StringVar()
+
+        # Ground Object paths
+        self.gnd_dat_fpath = StringVar()
+        self.gnd_visual_fpath = StringVar()
+        self.gnd_collision_fpath = StringVar()
+        self.gnd_cockpit_fpath = StringVar()
+        self.gnd_coarse_fpath = StringVar()
+
+        # Scenery paths
+        self.sce_fld_path = StringVar()
+        self.sce_stp_path = StringVar()
+        self.sce_mission_path = StringVar()
+        self.scenery_airrace = IntVar(value=0)
+
+        # Define lists that hold aircraft, ground and scenery names for the listboxes
+        self.air_listbox_names = list()
+        self.gnd_listbox_names = list()
+        self.sce_listbox_names = list()
+
+        # Define the output pack directory
+        self.PackDirectory = StringVar(value = os.getcwd())  # Default to where this code is run from.
+
+        # Define where the models are located
+        self.WorkingDirectory = StringVar(value = os.getcwd())  # default to where this code is run from.
         
-        # Define other class parameters
-        self.filepath1 = StringVar()
-        self.filepath2 = StringVar()
-        self.filepath3 = StringVar()
-        self.filepath4 = StringVar()
-        self.filepath5 = StringVar()
-        self.filelabel1 = StringVar()
-        self.filelabel2 = StringVar()
-        self.filelabel3 = StringVar()
-        self.filelabel4 = StringVar()
-        self.filelabel5 = StringVar()
+        # Define names that the user will input at various points
         self.SceneryName = StringVar()
+        self.UserName = StringVar()
+        self.PackName = StringVar()
+
+        # Define storage of the different LST file contents
+        self.AircraftContents = list()
+        self.GroundContents = list()
+        self.SceneryConntents = list()
+                
+        # Define the LST Mode and options.
+        self.LstMode = StringVar(value="Aircraft")  # other options are Scenery and Ground
+        self.lst_mode_options = ['Aircraft', 'Ground', 'Scenery']              
         
-        
-        self.lst_mode = StringVar(value="Aircraft")  # other options are Scenery and Ground
-        self.lst_mode_options = ['Aircraft', 'Ground', 'Scenery']
-        self.folderpath = StringVar()
-        self.filepaths = list()
-        
-        # Define filetypes for GUIs
+        # Define the filetype options for the file selection gui, based on the allowable filetype.
         filetypes = dict()
         filetypes['srf'] = [("SRF File", "*.srf")]
         filetypes['dat'] = [("DAT File", "*.dat")]
@@ -95,24 +128,28 @@ class LSTBuilderGUI(Frame):
                               "Select The Scenery's Mission File"]
         self.prompts = prompts        
         
-        # Define required files
+        # Define which files are required for a valid LST entry. Use None to fill in gaps so that all
+        # definitions have the same length to avoid potential issues in the future.
         required_files = dict()
         required_files['Aircraft'] = [True, True, True, False, False]
         required_files['Scenery'] = [True, True, False, None, None]
         required_files['Ground'] = [True, True, True, False, False]
         self.required_files = required_files
         
-        # Define Labels
+        # Define Labels that should appear in the GUI for the various 
         labels = dict()
         labels['Aircraft'] = ['DAT', 'Visual Model', 'Collision', 'Cockpit', 'Coarse']
         labels['Ground'] = ['DAT', 'Visual Model', 'Collision', 'Cockpit', 'Coarse']
         labels['Scenery'] = ['Map', 'Start Position', 'Mission', '', '']
         self.labels = labels
-        
+
+        # Define the allowable file types for the different positions.
+        # Make sure every element is a list so that they can all be parsed the same
+        # way in the "select file" function.
         lst_filetypes = dict()
-        lst_filetypes['Aircraft'] = ['dat', ['dnm', 'srf'], ['dnm', 'srf'], ['dnm', 'srf'], ['dnm', 'srf']]
-        lst_filetypes['Ground'] = ['dat', ['dnm', 'srf'], ['dnm', 'srf'], ['dnm', 'srf'], ['dnm', 'srf']]
-        lst_filetypes['Scenery'] = ['fld', 'stp', 'yfs', '', '']
+        lst_filetypes['Aircraft'] = [['dat'], ['dnm', 'srf'], ['dnm', 'srf'], ['dnm', 'srf'], ['dnm', 'srf']]
+        lst_filetypes['Ground'] = [['dat'], ['dnm', 'srf'], ['dnm', 'srf'], ['dnm', 'srf'], ['dnm', 'srf']]
+        lst_filetypes['Scenery'] = [['fld'], ['stp'], ['yfs'], [], []]
         self.lst_filetypes = lst_filetypes
         
         
@@ -128,87 +165,99 @@ class LSTBuilderGUI(Frame):
         
         # Window Geometry Controls
         self.parent.wm_resizable(width=True, height=True)
-        self.parent.minsize(self.parent.winfo_width() + 100, self.parent.winfo_height() + 150)
+        self.parent.minsize(self.parent.winfo_width() + 150, self.parent.winfo_height() + 150)
         
         # Window Order
         self.parent.wm_attributes('-topmost', 1)
         
         # Setup the Frames
-        MainFrame = Frame()
-        PackFrame = LabelFrame(MainFrame, text="Pack Details")
-        EditFrame = Frame(MainFrame)
-        PreviewFrame = Frame(EditFrame)
-        SelectFrame = Frame(EditFrame)
-        ButtonFrame = Frame(MainFrame)
-        
+        MainFrame = Frame()        
+        #
         # Setup the Pack Frame
-        pack_label = Label(PackFrame, text="Pack Folder: ")
-        pack_label.grid(row=0, column=0, sticky="W")
-        pack_filepath_display = Entry(PackFrame, textvariable=self.folderpath, width=40).grid(row=0, column=1, sticky="WE")
-        pack_button = Button(PackFrame, text="Select Pack Folder", command=self.select_pack_directory).grid(row=0, column=2)
-        
-        lst_type = Label(PackFrame, text="LST Type:").grid(row=1, column=0)
-        lst_type_selection = OptionMenu(PackFrame, self.lst_mode, *self.lst_mode_options).grid(row=1, column=1, columnspan=2)
-        
-        # Setup the File Selection Frame
+        #
+
+        # Define the place for the user to input:
+        #  - The Pack's name
+        #  - Where the files are located
+        #  - Where the Pack should be assembled on their computer
+        #  - What the name of their folder in the User folder should bev
+        PackFrame = LabelFrame(MainFrame, text="Pack Details")
         row_num = 0
-        self.scenery_name_label = Label(EditFrame, text="Scenery Name")
-        self.scenery_name_label.grid(row=row_num, column=0, sticky="W")
-        self.scenery_name_entry = Entry(EditFrame, textvariable=self.SceneryName, width=30)
-        self.scenery_name_entry.grid(row=row_num, column=1, sticky="WE")
+        Label(PackFrame, text="Pack Name:").grid(row=row_num, column=0, sticky="W")
+        Entry(PackFrame, textvariable=self.PackName, width=40).grid(row=row_num, column=1, sticky="WE")
+        # TODO impliment gui element <leave> to validate the pack name could be part of the valid filestructure [aA-zZ][0-9][_-]
 
         row_num += 1
-        self.file1_label = Label(EditFrame, text=self.labels[self.lst_mode.get()][0])
-        self.file1_label.grid(row=row_num, column=0, sticky="W")
-        self.file1_entry = Entry(EditFrame,textvariable=self.filepath1, width=30)
-        self.file1_entry.grid(row=row_num, column=1, sticky="WE")
-        self.button1 = Button(EditFrame, text="Select File", command=lambda: self.select_file(0))
-        self.button1.grid(row=row_num, column=2, stick="WE")
+        Label(PackFrame, text="User Name:").grid(row=row_num, column=0, sticky="W")
+        Entry(PackFrame, textvariable=self.UserName, width=40).grid(row=row_num, column=1, sticky="WE")
+        # TODO impliment gui element <leave> to validate the username could be part of the valid filestructure [aA-zZ][0-9][_-]
         
+        row_num += 1
+        Label(PackFrame, text="Modding Directory:").grid(row=row_num, column=0, sticky="W")
+        Entry(PackFrame, textvariable=self.WorkingDirectory, width=40).grid(row=row_num, column=1)
+        Button(PackFrame, text="Select").grid(row=row_num, column=2)
 
         row_num += 1
-        self.file2_label = Label(EditFrame, text=self.labels[self.lst_mode.get()][1])
-        self.file2_label.grid(row=row_num, column=0, sticky="W")
-        self.file2_entry = Entry(EditFrame,textvariable=self.filepath2, width=30)
-        self.file2_entry.grid(row=row_num, column=1, sticky="WE")
-        self.button2 = Button(EditFrame, text="Select File", command=lambda: self.select_file(1))
-        self.button2.grid(row=row_num, column=2, stick="WE")
+        Label(PackFrame, text="Output Directory:").grid(row=row_num, column=0, sticky="W")
+        Entry(PackFrame, textvariable=self.PackDirectory, width=40).grid(row=row_num, column=1)
+        Button(PackFrame, text="Select").grid(row=row_num, column=2)
 
-        row_num += 1
-        self.file3_label = Label(EditFrame, text=self.labels[self.lst_mode.get()][2])
-        self.file3_label.grid(row=row_num, column=0, sticky="W")
-        self.file3_entry = Entry(EditFrame,textvariable=self.filepath3, width=30)
-        self.file3_entry.grid(row=row_num, column=1, sticky="WE")
-        self.button3 = Button(EditFrame, text="Select File", command=lambda: self.select_file(2))
-        self.button3.grid(row=row_num, column=2, stick="WE")
+        # Start a notebook to hold aircraft, ground object and scenery inputs
+        Notebook = ttk.Notebook(MainFrame)
 
-        row_num += 1
-        self.file4_label = Label(EditFrame, text=self.labels[self.lst_mode.get()][3])
-        self.file4_label.grid(row=row_num, column=0, sticky="W")
-        self.file4_entry = Entry(EditFrame,textvariable=self.filepath4, width=30)
-        self.file4_entry.grid(row=row_num, column=1, sticky="WE")
-        self.button4 = Button(EditFrame, text="Select File", command=lambda: self.select_file(3))
-        self.button4.grid(row=row_num, column=2, stick="WE")
+        # Build the aircraft Tab
+        AircraftFrame = Frame(Notebook)
 
-        row_num += 1
-        self.file5_label = Label(EditFrame, text=self.labels[self.lst_mode.get()][4])
-        self.file5_label.grid(row=row_num, column=0, sticky="W")
-        self.file5_entry = Entry(EditFrame,textvariable=self.filepath5, width=30)
-        self.file5_entry.grid(row=row_num, column=1, sticky="WE")
-        self.button5 = Button(EditFrame, text="Select File", command=lambda: self.select_file(4))
-        self.button5.grid(row=row_num, column=2, stick="WE")
-
+        # Aircraft Preview Section
+        AircraftPreviewFrame = Frame(AircraftFrame)
+        AircraftListFrame = Frame(AircraftPreviewFrame)
+        air_listbox = Listbox(AircraftListFrame, width=20, height=15, font=("Helvetica",12), selectmode='SINGLE')
+        air_listbox.pack(side="left")
+        air_scrollbar = ttk.Scrollbar(AircraftListFrame, orient='vertical')
+        air_scrollbar.configure(command=air_listbox.yview)
+        air_scrollbar.pack(side='right', fill='y')
+        AircraftListFrame.pack(side="top")
+        
+        AircraftPreviewButtonFrame = Frame(AircraftPreviewFrame)
+        Button(AircraftPreviewButtonFrame, text="Edit").grid(row=0, column=0, sticky="NSWE")  #TODO Add Command
+        Button(AircraftPreviewButtonFrame, text="Delete").grid(row=0, column=1, sticky="NSWE")  #TODO Add Command
+        AircraftPreviewButtonFrame.pack(side='bottom')
+        AircraftPreviewFrame.pack(side="left")
+        
+        # Aircraft Edit Section         
+        AircraftEditFrame = Frame(AircraftFrame)
+        AircraftEditButtonFrame = Frame(AircraftEditFrame)
 
         
-
+        AircraftFrame.pack()
         
+
+        # Build the Ground Object Tab
+        GroundFrame = Frame(Notebook)
+        GroundPreviewFrame = Frame(GroundFrame)
+        GroundPreviewButtonFrame = Frame(GroundPreviewFrame)
+        GroundEditFrame = Frame(GroundFrame)
+        GroundEditButtonFrame = Frame(GroundEditFrame)
+        
+
+        # Build the Scenery Tab
+        SceneryFrame = Frame(Notebook)
+        SceneryPreviewFrame = Frame(SceneryFrame)
+        SceneryPreviewButtonFrame = Frame(SceneryPreviewFrame)  
+        SceneryEditFrame = Frame(SceneryFrame)
+        SceneryEditButtonFrame = Frame(SceneryEditFrame)
+              
+        
+        # Add the Aircraft, Ground Object and Scenery Frames to the Note Book
+        Notebook.add(AircraftFrame, text='Aircraft')
+        Notebook.add(GroundFrame, text='Ground Objects')
+        Notebook.add(SceneryFrame, text='Scenery')
+
         # Pack up the frames
         MainFrame.pack()
         PackFrame.pack()
-        EditFrame.pack()
-        PreviewFrame.grid(row=0, column=0)
-        SelectFrame.grid(row=0, column=1)
-        ButtonFrame.pack()
+        Notebook.pack(expand=True, fill='both')
+        
         
         
 
@@ -230,27 +279,25 @@ class LSTBuilderGUI(Frame):
 
 
 
-    def select_File(self, file_position):
+    def select_file(self, file_position):
         """Select the file for the indicated position."""
         # Get the prompt
-        prompt = self.prompts[self.lst_mode.get()][file_position]
+        prompt = self.prompts[self.LstMode.get()][file_position]
 
-        # Get the filetypes 
-        gui_filetype = [("All Files", "*.*")]
+        # Get the filetypes that are allowed for this position.
+        gui_filetype = list() 
+        ftype = self.lst_filetypes[self.LstMode.get()][file_position] # returns list of 0 - n elements
+        for filetype in ftype:
+            if filetype.lower() in self.filetypes.keys():
+                gui_filetype.append(self.filetypes[filetype.lower()])
 
-        ftype = self.lst_filetypes[self.lst_mode.get()][file_position]
-
-        if isinstance(ftype, list):
-            for filetype in ftype:
-                if filetype.lower() in self.filetypes.keys():
-                    gui_filetype.insert(0, self.filetypes[filetype.lower()])
-        elif isinstance(ftype, str):
-            if ftype.lower() in self.filetypes.keys():
-                gui_filetype.insert(0, self.filetypes[ftype.lower()])
+        gui_filetypes.append([("All Files", "*.*")])  # Always give the user an option to select all files.
 
         # Get the filepath using GUI
         path = filedialog.askdirectory(parent=parent, title=prompt, initialdir=starting_directory, filetypes=gui_filetype)
 
+        # Set the filepath if a valid filepath is returned.
+        # TODO:  figure out if there is a better way to handle this.
         if isinstance(path, str) and path != "":
             if file_position == 0:
                 self.filepath1.set(path)
@@ -266,7 +313,26 @@ class LSTBuilderGUI(Frame):
     
        
     
-    
+class AircraftElement:
+    def __init__(self):
+        # Define filepaths to the various files.
+        self.dat = ""  
+        self.visual = ""
+        self.collision = ""
+        self.coarse = ""
+        self.cockpit = ""
+
+    def load_lst(self, line):
+        """Parse an lst file line into an aircraft element"""
+
+
+    def assign(self, dat, visual, collision, cockpit, coarse):
+        self.dat = dat
+        self.visual = visual
+        self.collision = collision
+        self.cockpit = cockpit
+        self.coarse = coarse
+
     
     
         
