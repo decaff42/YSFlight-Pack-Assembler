@@ -286,6 +286,23 @@ def main():
     root.deiconify()
     root.mainloop()
 
+class LSTEditorView(Frame):
+    def __init__(self, parent, title, version, author, copyright_notice):
+        super().__init__(parent)
+        self.title = title
+        self.parent = parent
+        self.version = version
+        self.author = author
+        self.copyright_notice = copyright_notice
+
+        self.lst_items = tk.LabelFrame(parent=self, text="LST file contents")
+        self.lst_items.grid(0, 0)
+
+        self.edit_pane = tk.Frame(parent=self)
+        self.edit_pane.grid(1, 0)
+
+
+
 
 class LSTBuilderGUI(Frame):
     def __init__(self, parent, title, version, author, copyright_notice):
