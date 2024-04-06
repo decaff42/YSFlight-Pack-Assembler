@@ -1,0 +1,53 @@
+# YSFLight Pack LST Maker Requirements
+
+
+1. Must have GUI interface
+
+- Let the user define the working directory to make selections easier.
+- Let the user define the output location for the Pack
+
+
+
+- User will select files from working directory and assign to various positions
+
+- Don't clear entry fields unless user clicks a button and confirms it in a pop-up
+
+- Be able to switch back and forth between different LST types and properly display loaded aircraft/ground/scenery
+
+
+
+
+
+
+2. Must make Aircraft, Ground Object and Scenery LST files
+
+
+2.1 - LST File order for each type of addon:
+
+Note an * indicates an optional Files.
+
+- Ground and Aircraft LST Files have same file order and types
+    - DAT, Visual, Collision, *Cockpit, *Coarse
+- Scenery Files have the following order
+    - Scenery Name, FLD File, STP File, *Mission File
+    - *Checkbox for "AIRRACE" mode options.
+
+2.2 - Formatting
+All filepaths in the output LST file will have Quotation marks surounding them.
+- In Scenery LST Files the AIRRACE and Scenery Name
+- The Scenery Name will replace spaces with underscores
+
+
+
+2.3 - User Checks
+- Check to see if the files have the right prefixes/notes in their  filenames
+ - 'coll' in collision files
+ - 'coar' in coarse files
+ - 'cock' in cockpit files
+
+- Check to see that the DAT file is only used once.
+
+
+- Check that IDENTIFY lines are unique
+
+
