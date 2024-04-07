@@ -44,12 +44,32 @@ FILE_TYPES = {
     "yfs": [("Mission File", "*.yfs")]
 }
 
+class Config:
+    def __init__(self, file_path):
+        self.file_path = file_path
+        try:
+            with open(file_path, 'r') as f:
+                config = json.load(f)
+        except:
+            print("config.json not found, or config.json has syntax errors.", file=sys.stderr)
+            config = dict()
+        self.config = config
+
+    def set(self, name, value):
+        self.config[name] = value
+        self.save_config()
+
+    def get(self, name):
+        return self.config[name] if name in self.config else None
+
+    def save_config(self):
+        with open(self.file_path, "w") as config:
+            json.dump(self.config, config)
+
+
+
 def load_config():
-    try:
-        return json.load(open("config.json"))
-    except:
-        print("config.json not found, or config.json has syntax errors.", file=sys.stderr)
-        return dict()
+    return Config("config.json")
 
 
 CONFIG = load_config()
@@ -62,7 +82,7 @@ def main():
 
     view = LSTBuilderGUI(root, controller, __title__, __version__, __author__, __copyright__)
 
-    controller.set_view(controller)
+    controller.set_view(view)
 
     root.deiconify()
     root.mainloop()
@@ -78,6 +98,13 @@ class LSTBuilderGUIController:
     def set_view(self, view):
         self.view = view
 
+    def save_lsts(self):
+        """
+        Called by the view to save the LST files.
+        :return: None
+        """
+        pass
+
 
 class LSTBuilderGUI(Frame):
     def __init__(self, parent, controller, title, version, author, copyright_notice):
@@ -90,21 +117,19 @@ class LSTBuilderGUI(Frame):
 
         self.controller = controller
 
-        # Define lists that hold aircraft, ground and scenery names for the listboxes
-        self.air_listbox_names = list()
-        self.gnd_listbox_names = list()
-        self.sce_listbox_names = list()
-
         # Define the output pack directory
-        self.PackDirectory = StringVar(value=os.path.join(os.getcwd(), "out"))  # Default to where this code is run from.
+        self.PackDirectory = StringVar(value=CONFIG.get("output_directory") or os.path.join(os.getcwd(), "out"))  # Default to where this code is run from.
 
         # Define where the models are located
-        self.WorkingDirectory = StringVar()  # default to where this code is run from.
+        self.WorkingDirectory = StringVar(value=CONFIG.get("working_directory"))  # default to where this code is run from.
 
         # Define names that the user will input at various points
         self.SceneryName = StringVar()
-        self.UserName = StringVar()
-        self.PackName = StringVar()
+        self.UserName = StringVar(value=CONFIG.get("user_name"))
+        self.UserName.trace('w', lambda a, b, c: CONFIG.set('user_name', self.UserName.get()))
+
+        self.PackName = StringVar(value=CONFIG.get("pack_name"))
+        self.PackName.trace('w', lambda a, b, c: CONFIG.set('pack_name', self.PackName.get()))
 
         # Define the aircraft and ground object name based on the DAT file.
         self.AircraftName = StringVar(value='AIRCRAFT_NAME')
@@ -207,7 +232,7 @@ class LSTBuilderGUI(Frame):
 
         row_num += 1
         Label(PackFrame, text="User Name:").grid(row=row_num, column=0, sticky="W")
-        Entry(PackFrame, textvariable=self.UserName, width=40).grid(row=row_num, column=1, sticky="WE")
+        user_name_entry = Entry(PackFrame, textvariable=self.UserName, width=40).grid(row=row_num, column=1, sticky="WE")
         # TODO impliment gui element <leave> to validate the username could be part of the valid filestructure [aA-zZ][0-9][_-]
 
 
@@ -219,6 +244,7 @@ class LSTBuilderGUI(Frame):
             dir = self.choose_dir(prompt="Set Modding directory", start_dir=self.WorkingDirectory.get() or '.')
             if dir:
                 self.WorkingDirectory.set(dir)
+                CONFIG.set("working_directory", dir)
 
         Button(PackFrame, text="Select", command=set_modding_directory).grid(row=row_num, column=2)
 
@@ -227,9 +253,10 @@ class LSTBuilderGUI(Frame):
         Entry(PackFrame, textvariable=self.PackDirectory, width=40).grid(row=row_num, column=1)
 
         def set_output_directory():
-            dir = self.choose_dir(prompt="Set output directory for pack", start_dir='.')
+            dir = self.choose_dir(prompt="Set output directory for pack", start_dir=self.PackDirectory.get() or '.')
             if dir:
                 self.PackDirectory.set(dir)
+                CONFIG.set("output_directory", dir)
 
         Button(PackFrame, text="Select", command=set_output_directory).grid(row=row_num, column=2)
 
@@ -266,7 +293,7 @@ class LSTBuilderGUI(Frame):
         Label(AircraftEntryFrame, textvariable=self.AircraftName).grid(row=row_num, column=0, columnspan=3)
 
         for row_num in range(5):
-            Label(AircraftEntryFrame, text=air_panel['labels'][row_num]).grid(row=row_num + 1, column=0, sticky="W")
+            Label(AircraftEntryFrame, text=air_panel['labels'][row_num] + (" *" if air_panel['required_fields'][row_num] else "")).grid(row=row_num + 1, column=0, sticky="W")
             Entry(AircraftEntryFrame, textvariable=air_panel['fpaths'][row_num], width=30).grid(row=row_num + 1,
                                                                                                 column=1, sticky="WE")
 
@@ -349,8 +376,15 @@ class LSTBuilderGUI(Frame):
 
     def save_item(self, frame_id):
         if frame_id == 'aircraft':
+
+            air_lst_line_args = {k: self.aircraft_edit_panel['fpaths'][i].get() for i, k in enumerate(["dat", "dnm", "collision", "cockpit", "coarse"])}
+
+            if any((value is None or value == "") and is_required for value, is_required in zip(air_lst_line_args.values(), self.aircraft_edit_panel['required_fields'])):
+                messagebox.showerror(title="Required values missing", message="Required values are missing! \nVerify that all file paths with (*) are filled in!")
+                return  # no dice
+
             self.controller.aircraft_lst.lines.append(
-                AirLSTLine({k:self.aircraft_edit_panel['fpaths'][i] for i, k in enumerate(AirLSTLine.__dict__.keys())})
+                AirLSTLine(**air_lst_line_args)
             )
             self.update_lst_pane('aircraft')
 
@@ -503,20 +537,20 @@ class AirLSTLine:
           The aircraft dat file.
         dnm:
           The aircraft dnm file.
-        collision_srf:
+        collision:
           The aircraft collision srf file.
-        cockpit_srf:
+        cockpit:
           The aircraft cockpit srf file. Not required.
-        coarse_dnm:
+        coarse:
           The aircraft coarse dnm file. Not required.
         aircraft_name:
           The aircraft name. A tuple of datfile and aircraft name. Used as a caching object.
     """
     dat: os.PathLike
     dnm: os.PathLike
-    collision_srf: os.PathLike
-    cockpit_srf: os.PathLike = None
-    coarse_dnm: os.PathLike = None
+    collision: os.PathLike
+    cockpit: os.PathLike = None
+    coarse: os.PathLike = None
     _aircraft_name = None
 
     def get_csv_line(self):
