@@ -377,10 +377,8 @@ class PackBuilderGUI(Frame):
             # Ask the user if they reeaaaaaallly want to delete all the paths.
             prompt = "Are you sure you want to delete all of the {} filepaths you have entered?".format(mode)
             title = "Delete all {} Filepaths?".format(mode)
-            
-
-
-
+        
+        # TODO finish this function      
 
         # Clear filepath inputs
         self.current_paths[mode] = [StringVar()] * len(self.current_paths[mode])  # Account for the 5 vs 3 length difference
