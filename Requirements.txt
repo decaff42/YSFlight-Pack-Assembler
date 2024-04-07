@@ -5,7 +5,7 @@
 
 - Let the user define the working directory to make selections easier.
 - Let the user define the output location for the Pack
-
+- Get 
 
 
 - User will select files from working directory and assign to various positions
@@ -14,6 +14,7 @@
 
 - Be able to switch back and forth between different LST types and properly display loaded aircraft/ground/scenery
 
+- Be able to load an LST file and then edit it.
 
 
 
