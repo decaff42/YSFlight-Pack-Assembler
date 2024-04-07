@@ -181,12 +181,12 @@ class PackBuilderGUI(Frame):
         row_num += 1
         Label(PackFrame, text="Modding Directory:").grid(row=row_num, column=0, sticky="W")
         Entry(PackFrame, textvariable=self.WorkingDirectory, width=40).grid(row=row_num, column=1)
-        Button(PackFrame, text="Select").grid(row=row_num, column=2)
+        Button(PackFrame, text="Select", command=self.select_working_directory).grid(row=row_num, column=2)
 
         row_num += 1
         Label(PackFrame, text="Output Directory:").grid(row=row_num, column=0, sticky="W")
         Entry(PackFrame, textvariable=self.PackDirectory, width=40).grid(row=row_num, column=1)
-        Button(PackFrame, text="Select").grid(row=row_num, column=2)
+        Button(PackFrame, text="Select", command=self.select_pack_directory).grid(row=row_num, column=2)
 
         # Start a notebook to hold aircraft, ground object and scenery inputs
         Notebook = ttk.Notebook(MainFrame)
@@ -383,7 +383,6 @@ class PackBuilderGUI(Frame):
         # Clear filepath inputs
         self.current_paths[mode] = [StringVar()] * len(self.current_paths[mode])  # Account for the 5 vs 3 length difference
 
-    
     def select_pack_directory(self):
         """Have the user select where they want their addon package to be assembled.
         
@@ -394,11 +393,39 @@ class PackBuilderGUI(Frame):
         - None - This function will set the appropriate class variable.
         """
         prompt = "Select the Directory where you want to assemble your addon package."
+        path = Filedialog.askdirectory(parent=self.parent, title=prompt, mustexist=True, initialdir = self.os.getcwd())
 
+        # Validate the path
+        if isinstance(path, str) is False:
+            return
+        else:
+            if path == "":
+                return
 
-        # if the user did not 
+        # Set the appropriate variable
+        self.PackDirectory.set(path)
 
+    def select_working_directory(self):
+        """Have the user select where they want their their WIP files are
+        
+        Inputs
+        - None - The function is only called from one location
 
+        Outputs
+        - None - This function will set the appropriate class variable.
+        """
+        prompt = "Select the Directory where you have your modding files."
+        path = Filedialog.askdirectory(parent=self.parent, title=prompt, mustexist=True, initialdir = self.os.getcwd())
+
+        # Validate the path
+        if isinstance(path, str) is False:
+            return
+        else:
+            if path == "":
+                return
+
+        # Set the appropriate variable
+        self.WorkingDirectory.set(path)
 
     def select_file(self, file_position, mode):
         """Select the file for the indicated position.
