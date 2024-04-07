@@ -248,7 +248,7 @@ class PackBuilderGUI(Frame):
         
         AircraftEditButtonFrame = Frame(AircraftEditFrame)
         Button(AircraftEditButtonFrame, text="Save").grid(row=0,column=0, sticky="NSWE")  # TODO Add Command
-        Button(AircraftEditButtonFrame, text="Clear All Inputs").grid(row=0,column=1, sticky="NSWE")  # TODO Add Command
+        Button(AircraftEditButtonFrame, text="Clear All Inputs", command=lambda: self.clear_paths('Scenery')).grid(row=0,column=1, sticky="NSWE")
         AircraftEditButtonFrame.pack()
         
         AircraftEditFrame.pack(side='right')
@@ -307,7 +307,6 @@ class PackBuilderGUI(Frame):
         Button(SceneryEntryFrame, text="Select", command=lambda: self.select_file(2, 'Scenery')).grid(row=row_num, column=2, sticky="NSWE")
 
         row_num += 1
-        # Label(SceneryEntryFrame, text="2018+ Air Race Map?").grid(row=row_num, column=0, sticky="W")
         Checkbutton(SceneryEntryFrame, text="YSFlight 2018+ Air Race Map?", variable=self.SceneryAirRace, onvalue=1, offvalue=0).grid(row=row_num, column=1, sticky='w')
 
         SceneryEntryFrame.pack()
@@ -316,7 +315,7 @@ class PackBuilderGUI(Frame):
         
         SceneryEditButtonFrame = Frame(SceneryEditFrame)
         Button(SceneryEditButtonFrame, text="Save").grid(row=0,column=0, sticky="NSWE")  # TODO Add Command
-        Button(SceneryEditButtonFrame, text="Clear All Inputs").grid(row=0,column=1, sticky="NSWE")  # TODO Add Command
+        Button(SceneryEditButtonFrame, text="Clear All Inputs", command=lambda: self.clear_paths('Scenery')).grid(row=0,column=1, sticky="NSWE")
         SceneryEditButtonFrame.pack()
         
         SceneryEditFrame.pack(side='right')
@@ -354,13 +353,14 @@ class PackBuilderGUI(Frame):
 
         inputs
         mode (str): 'Aircraft', 'Ground', or 'Scenery'
-        ask (boolean): a boolean to ask if the user wants to clear aircraft entries.
+        ask (boolean): a boolean to force the user to confirm they want to clear filepath entries.
 
         outputs
         None - This function executes and will set the appropriate variables in the class
         """
 
-        # Validate inputs:
+        # Validate inputs. These should never trigger unless we have not 
+        # properly set up the command calls for the select file buttons.
         if isinstance(mode, str) is True:
             if mode in self.lst_mode_options is False:
                 raise ValueError("{} Found that input [mode] was not 'Aircraft', 'Ground', or 'Scenery'".format(__name__))
@@ -373,12 +373,15 @@ class PackBuilderGUI(Frame):
         # Determine if there are any currently loaded paths that we should ask the user if
         # they want to delete them.
         paths = self.current_paths[mode]
-        if any([True for path in paths if len(path.get()) > 0]):
+        if any([True for path in paths if len(path.get()) > 0]) or ask is True:
             # Ask the user if they reeaaaaaallly want to delete all the paths.
             prompt = "Are you sure you want to delete all of the {} filepaths you have entered?".format(mode)
             title = "Delete all {} Filepaths?".format(mode)
-        
-        # TODO finish this function      
+
+            answer = mesagebox.askquestion(parent=self.parent, title=title, message=prompt)
+
+            if answer is False or answer is None:
+                return   
 
         # Clear filepath inputs
         self.current_paths[mode] = [StringVar()] * len(self.current_paths[mode])  # Account for the 5 vs 3 length difference
