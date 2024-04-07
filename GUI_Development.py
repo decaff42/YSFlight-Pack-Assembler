@@ -74,6 +74,7 @@ class PackBuilderGUI(Frame):
         self.SceneryName = StringVar()
         self.UserName = StringVar()
         self.PackName = StringVar()
+        self.SceneryAirRace = IntVar(value=0)
 
         # Define the aircraft and ground object name based on the DAT file.
         self.AircraftName = StringVar(value='AIRCRAFT_NAME')
@@ -137,8 +138,6 @@ class PackBuilderGUI(Frame):
         lst_filetypes['Ground'] = [['dat'], ['dnm', 'srf'], ['dnm', 'srf'], ['dnm', 'srf'], ['dnm', 'srf']]
         lst_filetypes['Scenery'] = [['fld'], ['stp'], ['yfs'], [], []]
         self.lst_filetypes = lst_filetypes
-        
-        
         
         # Setup the GUI
         self.gui_setup()
@@ -308,7 +307,8 @@ class PackBuilderGUI(Frame):
         Button(SceneryEntryFrame, text="Select", command=lambda: self.select_file(2, 'Scenery')).grid(row=row_num, column=2, sticky="NSWE")
 
         row_num += 1
-        Label(SceneryEntryFrame, text="2018+ Air Race Map?").grid(row=row_num, column=0, sticky="W")
+        # Label(SceneryEntryFrame, text="2018+ Air Race Map?").grid(row=row_num, column=0, sticky="W")
+        Checkbutton(SceneryEntryFrame, text="YSFlight 2018+ Air Race Map?", variable=self.SceneryAirRace, onvalue=1, offvalue=0).grid(row=row_num, column=1, sticky='w')
 
         SceneryEntryFrame.pack()
         
