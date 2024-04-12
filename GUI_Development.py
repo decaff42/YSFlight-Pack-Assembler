@@ -61,10 +61,11 @@ class PackBuilderGUI(Frame):
         self.current_filenames = {'Aircraft':[StringVar()] * 5, 'Ground':[StringVar()] * 5, 'Scenery':[StringVar()] * 3}
         # self.current_paths['Aircraft'][0].set('/')
 
-        # Define lists that hold aircraft, ground and scenery names for the listboxes
-        self.air_listbox_names = list()
-        self.gnd_listbox_names = list()
-        self.sce_listbox_names = list()
+        # Define the lists that will hold lst entry class instances. This will be the basis for the order of appearance
+        # in the various listboxes.
+        self.air_entries = list()
+        self.gnd_entries = list()
+        self.sce_entries = list()
 
         # Define the output pack directory
         self.PackDirectory = StringVar(value = os.path.abspath(os.sep))
@@ -88,7 +89,8 @@ class PackBuilderGUI(Frame):
         self.SceneryConntents = list()
                 
         # Define the the lst options
-        self.lst_mode_options = ['Aircraft', 'Ground', 'Scenery']              
+        self.lst_types = ['Aircraft', 'Ground', 'Scenery']  # validate mode inputs into functions
+        self.lst_file_prefixes = ['air', 'gnd', 'sce']  # Validate which lst file we are importing or exporting.
         
         # Define the filetype options for the file selection gui, based on the allowable filetype.
         filetypes = dict()
@@ -225,14 +227,14 @@ class PackBuilderGUI(Frame):
         AircraftPreviewFrame = Frame(AircraftFrame)
         AircraftListFrame = Frame(AircraftPreviewFrame)
         air_listbox = Listbox(AircraftListFrame, width=30, height=10, font=("Helvetica",12), selectmode='SINGLE')
-        air_listbox.pack(side="left")
+        air_listbox.grid(row=0, column=0, sticky="NSWE")
         air_yscrollbar = ttk.Scrollbar(AircraftListFrame, orient='vertical')
         air_yscrollbar.configure(command=air_listbox.yview)
-        air_yscrollbar.pack(side='right', fill='y')
+        air_yscrollbar.grid(row=0, column=1, sticky="NSWE")
         
         air_xscrollbar = ttk.Scrollbar(AircraftListFrame, orient='horizontal')
         air_xscrollbar.configure(command=air_listbox.xview)
-        air_yscrollbar.pack(side='bottom', fill='x')
+        air_xscrollbar.grid(row=1, column=0, sticky="NSWE")
         
         AircraftListFrame.pack(side="top")
         
@@ -281,6 +283,7 @@ class PackBuilderGUI(Frame):
         # Ground Object Edit Section
         GroundEditFrame = Frame(GroundFrame)
         GroundEntryFrame = Frame(GroundEditFrame)
+        row_num = 0
         GroundEditButtonFrame = Frame(GroundEditFrame)
 
         #
@@ -468,10 +471,9 @@ class PackBuilderGUI(Frame):
         None - This function executes and will set the appropriate variables in the class
         """
 
-        # Validate inputs. These should never trigger unless we have not 
-        # properly set up the command calls for the select file buttons.
+        # Validate inputs.
         if isinstance(mode, str) is True:
-            if mode in self.lst_mode_options is False:
+            if mode in self.lst_types is False:
                 raise ValueError("{} Found that input [mode] was not 'Aircraft', 'Ground', or 'Scenery'".format(__name__))
         else:
             raise TypeError("{} Expects input [mode] to be a string".format(__name__))
@@ -505,7 +507,7 @@ class PackBuilderGUI(Frame):
         - None - This function will set the appropriate class variable.
         """
         prompt = "Select the Directory where you want to assemble your addon package."
-        path = Filedialog.askdirectory(parent=self.parent, title=prompt, mustexist=True, initialdir = self.os.getcwd())
+        path = ttk.Filedialog.askdirectory(parent=self.parent, title=prompt, mustexist=True, initialdir = self.os.getcwd())
 
         # Validate the path
         if isinstance(path, str) is False:
@@ -527,7 +529,7 @@ class PackBuilderGUI(Frame):
         - None - This function will set the appropriate class variable.
         """
         prompt = "Select the Directory where you have your modding files."
-        path = Filedialog.askdirectory(parent=self.parent, title=prompt, mustexist=True, initialdir = self.os.getcwd())
+        path = ttk.Filedialog.askdirectory(parent=self.parent, title=prompt, mustexist=True, initialdir = self.os.getcwd())
 
         # Validate the path
         if path:
@@ -538,7 +540,9 @@ class PackBuilderGUI(Frame):
         """Select the file for the indicated position.
 
         Inputs
-        file_position (int): an integer of range 0 to 4 that indicates what position in the LST File the file being selected is for
+        file_position (int): an integer of range 0 to 4 that indicates what position in the LST File the file being
+                             selected is for and also corresponds to the vertical order of the GUI elements for selecting
+                             these files.
         mode (str): 'Aircraft', 'Ground', or 'Scenery'
 
         Outputs
@@ -555,7 +559,7 @@ class PackBuilderGUI(Frame):
             raise TypeError("{} Expects input [file_position] to be an integer".format(__name__))
 
         if isinstance(mode, str) is True:
-            if mode in self.lst_mode_options is False:
+            if mode in self.lst_types is False:
                 raise ValueError("{} Found that input [mode] was not 'Aircraft', 'Ground', or 'Scenery'".format(__name__))
         else:
             raise TypeError("{} Expects input [mode] to be a string".format(__name__))
@@ -582,7 +586,7 @@ class PackBuilderGUI(Frame):
         # Validate the path and process valid paths
         if path:  # Filters None and '' path values
             # Set the appropriate variables
-            self.current_paths[mode][file_position].set(path)\
+            self.current_paths[mode][file_position].set(path)
             self.current_filenames[mode][file_position].set(os.path.basename(path))
 
             # Store the directory that the user last selected
@@ -613,6 +617,21 @@ class PackBuilderGUI(Frame):
 
 
         # Force Scenery names to replace spaces with underscores
+
+
+class AirLSTEntry:
+    def __init__(self):
+        self.dat = None
+        self.visual = None
+        self.cockpit = None
+        self.collision = None
+        self.coarse = None
+        self.IDENTIFY = None
+        self.dat_rename = False
+
+    def assign_values(self, dict_of_values):
+        pass
+
 
 
 
