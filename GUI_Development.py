@@ -155,6 +155,15 @@ class PackBuilderGUI(Frame):
         
         # Window Order
         self.parent.wm_attributes('-topmost', 1)
+
+
+
+        #
+        # Set up the file menus
+        #
+
+        # Functions to Validate Pack filepaths & Identify Lines
+
         
         # Setup the Frames
         MainFrame = Frame()        
@@ -173,24 +182,22 @@ class PackBuilderGUI(Frame):
         self.PackNameEntry = Entry(PackFrame, textvariable=self.PackName, width=40)
         self.PackNameEntry.grid(row=row_num, column=1, sticky="WE")
         self.PackNameEntry.bind('<FocusOut>', lambda e: self.validate_pack_username(e, 'PackName'))
-        # TODO impliment gui element <leave> to validate the pack name could be part of the valid filestructure [aA-zZ][0-9][_-]
 
         row_num += 1
         Label(PackFrame, text="User Name:").grid(row=row_num, column=0, sticky="W")
         self.UserNameEntry = Entry(PackFrame, textvariable=self.UserName, width=40)
         self.UserNameEntry.grid(row=row_num, column=1, sticky="WE")
         self.UserNameEntry.bind('<FocusOut>', lambda e: self.validate_pack_username(e, 'UserName'))
-        # TODO impliment gui element <leave> to validate the username could be part of the valid filestructure [aA-zZ][0-9][_-]
         
-        row_num += 1
-        Label(PackFrame, text="Modding Directory:").grid(row=row_num, column=0, sticky="W")
-        Entry(PackFrame, textvariable=self.WorkingDirectory, width=40).grid(row=row_num, column=1)
-        Button(PackFrame, text="Select", command=self.select_working_directory).grid(row=row_num, column=2)
+        # row_num += 1
+        # Label(PackFrame, text="Modding Directory:").grid(row=row_num, column=0, sticky="W")
+        # Entry(PackFrame, textvariable=self.WorkingDirectory, width=40).grid(row=row_num, column=1)
+        # Button(PackFrame, text="Select", command=self.select_working_directory).grid(row=row_num, column=2)
 
-        row_num += 1
-        Label(PackFrame, text="Output Directory:").grid(row=row_num, column=0, sticky="W")
-        Entry(PackFrame, textvariable=self.PackDirectory, width=40).grid(row=row_num, column=1)
-        Button(PackFrame, text="Select", command=self.select_pack_directory).grid(row=row_num, column=2)
+        # row_num += 1
+        # Label(PackFrame, text="Output Directory:").grid(row=row_num, column=0, sticky="W")
+        # Entry(PackFrame, textvariable=self.PackDirectory, width=40).grid(row=row_num, column=1)
+        # Button(PackFrame, text="Select", command=self.select_pack_directory).grid(row=row_num, column=2)
 
         # Start a notebook to hold aircraft, ground object and scenery inputs
         Notebook = ttk.Notebook(MainFrame)
@@ -341,8 +348,6 @@ class PackBuilderGUI(Frame):
         MainFrame.pack()
         PackFrame.pack(expand=True, fill='y')
         Notebook.pack(expand=True, fill='both')
-        
-        
 
     def update_air_gnd_label(self, zone, datfilepath):
         """This function will be called to update the aircraft or ground object title
@@ -472,7 +477,7 @@ class PackBuilderGUI(Frame):
             prompt = "Are you sure you want to delete all of the {} filepaths you have entered?".format(mode)
             title = "Delete all {} Filepaths?".format(mode)
 
-            answer = mesagebox.askquestion(parent=self.parent, title=title, message=prompt)
+            answer = messagebox.askquestion(parent=self.parent, title=title, message=prompt)
 
             if answer is False or answer is None:
                 return   
@@ -566,8 +571,6 @@ class PackBuilderGUI(Frame):
 
         gui_filetypes.append(("All Files", "*.*"))  # Always give the user an option to select all files.
 
-        print(gui_filetypes)
-
         # Get the filepath using GUI
         path = filedialog.askopenfilename(parent=self.parent, title=prompt, initialdir=self.WorkingDirectory.get(), filetypes=gui_filetypes)
 
@@ -581,13 +584,31 @@ class PackBuilderGUI(Frame):
         # Set the appropriate variable
         self.current_paths[mode][file_position].set(path)
 
+        # Store the directory that the user last selected
+        self.WorkingDirectory.set(os.path.dirname(path))
+
         # Update the aircraft and ground object names
         if mode in ['Aircraft', 'Ground'] and path.endswith(".dat") and file_position == 0:
             self.update_air_gnd_label(mode, path)
 
 
-    
 
+    def assemble_pack(self):
+        """This function will take the filepaths, naming and organization.
+        Inputs
+        None
+
+        Outputs
+        None
+        """
+
+        # Ask the user where to export the pack to.
+
+
+        # Perform filepath validation
+
+
+        # Perform dat file identify line validation and compare to stored data.
         
 if __name__ == "__main__":
     main()
