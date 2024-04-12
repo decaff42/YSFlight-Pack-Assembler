@@ -58,6 +58,7 @@ class PackBuilderGUI(Frame):
 
         # Define filepaths that the user selects for the lst contents - These are Absolute Paths
         self.current_paths = {'Aircraft':[StringVar()] * 5, 'Ground':[StringVar()] * 5, 'Scenery':[StringVar()] * 3}
+        self.current_filenames = {'Aircraft':[StringVar()] * 5, 'Ground':[StringVar()] * 5, 'Scenery':[StringVar()] * 3}
         # self.current_paths['Aircraft'][0].set('/')
 
         # Define lists that hold aircraft, ground and scenery names for the listboxes
@@ -97,6 +98,7 @@ class PackBuilderGUI(Frame):
         filetypes['stp'] = [("Start Position File", "*.stp")]
         filetypes['fld'] = [("Scenery File", "*.fld")]
         filetypes['yfs'] = [("Mission File", "*.yfs")]
+        filetypes['dnm srf'] = [("DynaModel or Surf File", "*.dnm *.srf")]
         self.filetypes = filetypes
 
         # Define prompts for the file selection dialogs
@@ -135,8 +137,8 @@ class PackBuilderGUI(Frame):
         # Make sure every element is a list so that they can all be parsed the same
         # way in the "select file" function.
         lst_filetypes = dict()
-        lst_filetypes['Aircraft'] = [['dat'], ['dnm', 'srf'], ['dnm', 'srf'], ['dnm', 'srf'], ['dnm', 'srf']]
-        lst_filetypes['Ground'] = [['dat'], ['dnm', 'srf'], ['dnm', 'srf'], ['dnm', 'srf'], ['dnm', 'srf']]
+        lst_filetypes['Aircraft'] = [['dat'], ['dnm srf', 'dnm', 'srf'], ['dnm srf', 'dnm', 'srf'], ['dnm srf', 'dnm', 'srf'], ['dnm srf', 'dnm', 'srf']]
+        lst_filetypes['Ground'] = [['dat'], ['dnm srf', 'dnm', 'srf'], ['dnm srf', 'dnm', 'srf'], ['dnm srf', 'dnm', 'srf'], ['dnm srf', 'dnm', 'srf']]
         lst_filetypes['Scenery'] = [['fld'], ['stp'], ['yfs'], [], []]
         self.lst_filetypes = lst_filetypes
         
@@ -156,15 +158,25 @@ class PackBuilderGUI(Frame):
         # Window Order
         self.parent.wm_attributes('-topmost', 1)
 
-
-
         #
         # Set up the file menus
         #
 
         # Functions to Validate Pack filepaths & Identify Lines
 
-        
+        # Function to export
+
+        # Function to move listbox entry up and down
+
+        # Function to Edit an existing LST entry
+
+        # Function to Copy an existing LST Entry
+
+
+        # Settings menu to
+        # - Set default username
+        # - Set default modding directory
+
         # Setup the Frames
         MainFrame = Frame()        
         #
@@ -225,8 +237,8 @@ class PackBuilderGUI(Frame):
         AircraftListFrame.pack(side="top")
         
         AircraftPreviewButtonFrame = Frame(AircraftPreviewFrame)
-        Button(AircraftPreviewButtonFrame, text="Edit").grid(row=0, column=0, sticky="NSWE")  #TODO Add Command
-        Button(AircraftPreviewButtonFrame, text="Delete").grid(row=0, column=1, sticky="NSWE")  #TODO Add Command
+        Button(AircraftPreviewButtonFrame, text="Edit").grid(row=0, column=0, sticky="NSWE")  #TODO: Add Command
+        Button(AircraftPreviewButtonFrame, text="Delete").grid(row=0, column=1, sticky="NSWE")  #TODO: Add Command
         AircraftPreviewButtonFrame.pack(side='bottom')
         AircraftPreviewFrame.pack(side="left")
         
@@ -236,33 +248,17 @@ class PackBuilderGUI(Frame):
         row_num = 0
         Label(AircraftEntryFrame, textvariable=self.AircraftName).grid(row=row_num, column=0, columnspan=3)
 
-        row_num += 1
-        Label(AircraftEntryFrame, text="DAT File:").grid(row=row_num, column=0, sticky="W")
-        Entry(AircraftEntryFrame, textvariable=self.current_paths['Aircraft'][0], width=30).grid(row=row_num, column=1, sticky="WE")
-        Button(AircraftEntryFrame, text="Select", command=lambda: self.select_file(0, 'Aircraft')).grid(row=row_num, column=2, sticky="NSWE")
-
-        row_num += 1
-        Label(AircraftEntryFrame, text="DNM File:").grid(row=row_num, column=0, sticky="W")
-        Entry(AircraftEntryFrame, textvariable=self.current_paths['Aircraft'][1], width=30).grid(row=row_num, column=1, sticky="WE")
-        Button(AircraftEntryFrame, text="Select", command=lambda: self.select_file(1, 'Aircraft')).grid(row=row_num, column=2, sticky="NSWE")
-
-        row_num += 1
-        Label(AircraftEntryFrame, text="Collision File:").grid(row=row_num, column=0, sticky="W")
-        Entry(AircraftEntryFrame, textvariable=self.current_paths['Aircraft'][2], width=30).grid(row=row_num, column=1, sticky="WE")
-        Button(AircraftEntryFrame, text="Select", command=lambda: self.select_file(2, 'Aircraft')).grid(row=row_num, column=2, sticky="NSWE")
-
-        row_num += 1
-        Label(AircraftEntryFrame, text="Cockpit File:").grid(row=row_num, column=0, sticky="W")
-        Entry(AircraftEntryFrame, textvariable=self.current_paths['Aircraft'][3], width=30).grid(row=row_num, column=1, sticky="WE")
-        Button(AircraftEntryFrame, text="Select", command=lambda: self.select_file(3, 'Aircraft')).grid(row=row_num, column=2, sticky="NSWE")
-
-        row_num += 1
-        Label(AircraftEntryFrame, text="Coarse File:").grid(row=row_num, column=0, sticky="W")
-        Entry(AircraftEntryFrame, textvariable=self.current_paths['Aircraft'][4], width=30).grid(row=row_num, column=1, sticky="WE")
-        Button(AircraftEntryFrame, text="Select", command=lambda: self.select_file(4, 'Aircraft')).grid(row=row_num, column=2, sticky="NSWE")
+        # Build the Aircraft GUI Entry widgets iteratively
+        for file_position in range(0,5):
+            row_num += 1
+            txt = self.labels['Aircraft'][file_position] + ":"
+            if self.required_files['Aircraft']:
+                txt += " *"
+            Label(AircraftEntryFrame, text=self.labels['Aircraft'][file_position]).grid(row=row_num, column=0, sticky="W")
+            Entry(AircraftEntryFrame, textvariable=self.current_filenames['Aircraft'][file_position], width=30).grid(row=row_num, column=1, sticky="NSWE")
+            Button(AircraftEntryFrame, text="Select", command=lambda: self.select_file(file_position, 'Aircraft')).grid(row=row_num, column=2, sticky="NSWE")
         AircraftEntryFrame.pack()
 
-        
         AircraftEditButtonFrame = Frame(AircraftEditFrame)
         Button(AircraftEditButtonFrame, text="Save").grid(row=0,column=0, sticky="NSWE")  # TODO Add Command
         Button(AircraftEditButtonFrame, text="Clear All Inputs", command=lambda: self.clear_paths('Scenery')).grid(row=0,column=1, sticky="NSWE")
@@ -270,7 +266,6 @@ class PackBuilderGUI(Frame):
         
         AircraftEditFrame.pack(side='right')
         AircraftFrame.pack()
-        
 
         #
         # Build the Ground Object Tab
@@ -287,7 +282,6 @@ class PackBuilderGUI(Frame):
         GroundEditFrame = Frame(GroundFrame)
         GroundEntryFrame = Frame(GroundEditFrame)
         GroundEditButtonFrame = Frame(GroundEditFrame)
-        
 
         #
         # Build the Scenery Tab
@@ -299,7 +293,6 @@ class PackBuilderGUI(Frame):
         SceneryPreviewFrame = Frame(SceneryFrame)
         SceneryPreviewButtonFrame = Frame(SceneryPreviewFrame)
 
-
         # Scenery Edit Selection
         SceneryEditFrame = Frame(SceneryFrame)
         SceneryEntryFrame = Frame(SceneryEditFrame)
@@ -308,28 +301,20 @@ class PackBuilderGUI(Frame):
         Label(SceneryEntryFrame, text="Scenery Name:").grid(row=row_num, column=0, sticky='W')
         Entry(SceneryEntryFrame, textvariable=self.SceneryName).grid(row=row_num, column=1, columnspan=2, sticky='WE')
 
-        row_num += 1
-        Label(SceneryEntryFrame, text="FLD File:").grid(row=row_num, column=0, sticky="W")
-        Entry(SceneryEntryFrame, textvariable=self.current_paths['Scenery'][0], width=30).grid(row=row_num, column=1, sticky="WE")
-        Button(SceneryEntryFrame, text="Select", command=lambda: self.select_file(0, 'Scenery')).grid(row=row_num, column=2, sticky="NSWE")
-
-        row_num += 1
-        Label(SceneryEntryFrame, text="Start Position File:").grid(row=row_num, column=0, sticky="W")
-        Entry(SceneryEntryFrame, textvariable=self.current_paths['Scenery'][1], width=30).grid(row=row_num, column=1, sticky="WE")
-        Button(SceneryEntryFrame, text="Select", command=lambda: self.select_file(1, 'Scenery')).grid(row=row_num, column=2, sticky="NSWE")
-
-        row_num += 1
-        Label(SceneryEntryFrame, text="Mission File:").grid(row=row_num, column=0, sticky="W")
-        Entry(SceneryEntryFrame, textvariable=self.current_paths['Scenery'][2], width=30).grid(row=row_num, column=1, sticky="WE")
-        Button(SceneryEntryFrame, text="Select", command=lambda: self.select_file(2, 'Scenery')).grid(row=row_num, column=2, sticky="NSWE")
+        # Build the scenery GUI Elements iteratively.
+        for file_position in range(0,3):
+            row_num += 1
+            txt = self.labels['Scenery'][file_position] + ":"
+            if self.required_files['Scenery']:
+                txt += " *"
+            Label(SceneryEntryFrame, text=txt).grid(row=row_num, column=0, sticky="W")
+            Entry(SceneryEntryFrame, textvariable=self.current_filenames['Scenery'][file_position], width=30).grid(row=row_num, column=1, sticky="WE")
+            Button(SceneryEntryFrame, text="Select", command=lambda: self.select_file(file_position, 'Scenery')).grid(row=row_num, column=2, sticky="NSWE")
 
         row_num += 1
         Checkbutton(SceneryEntryFrame, text="YSFlight 2018+ Air Race Map?", variable=self.SceneryAirRace, onvalue=1, offvalue=0).grid(row=row_num, column=1, sticky='w')
-
         SceneryEntryFrame.pack()
-        
 
-        
         SceneryEditButtonFrame = Frame(SceneryEditFrame)
         Button(SceneryEditButtonFrame, text="Save").grid(row=0,column=0, sticky="NSWE")  # TODO Add Command
         Button(SceneryEditButtonFrame, text="Clear All Inputs", command=lambda: self.clear_paths('Scenery')).grid(row=0,column=1, sticky="NSWE")
@@ -337,8 +322,7 @@ class PackBuilderGUI(Frame):
         
         SceneryEditFrame.pack(side='right')
         SceneryFrame.pack()
-              
-        
+
         # Add the Aircraft, Ground Object and Scenery Frames to the Note Book
         Notebook.add(AircraftFrame, text='Aircraft')
         Notebook.add(GroundFrame, text='Ground Objects')
@@ -348,6 +332,32 @@ class PackBuilderGUI(Frame):
         MainFrame.pack()
         PackFrame.pack(expand=True, fill='y')
         Notebook.pack(expand=True, fill='both')
+
+    def save_pack_configuration(self):
+        """This function is used to save un-completed pack progress into a file that can be loaded by this program to
+        initialize class instances.
+
+        This function will be used in the future and for now is undeveloped
+        """
+
+    def load_pack_configuration(self):
+        """This function is used to load an un-completed pack progress into the program from a file written by
+        function save_pack_configuration and initializes class instances
+
+        This function will be used in the future and for now is undeveloped
+        """
+
+    def save_settings(self):
+        """Save user settings
+
+        This function will be used in the future and for now is undeveloped
+        """
+
+    def import_settings(self):
+        """Import user settings that they previously setup
+
+        This function will be used in the future and for now is undeveloped
+        """
 
     def update_air_gnd_label(self, zone, datfilepath):
         """This function will be called to update the aircraft or ground object title
@@ -520,14 +530,9 @@ class PackBuilderGUI(Frame):
         path = Filedialog.askdirectory(parent=self.parent, title=prompt, mustexist=True, initialdir = self.os.getcwd())
 
         # Validate the path
-        if isinstance(path, str) is False:
-            return
-        else:
-            if path == "":
-                return
-
-        # Set the appropriate variable
-        self.WorkingDirectory.set(path)
+        if path:
+            # Set the appropriate variable
+            self.WorkingDirectory.set(path)
 
     def select_file(self, file_position, mode):
         """Select the file for the indicated position.
@@ -574,22 +579,18 @@ class PackBuilderGUI(Frame):
         # Get the filepath using GUI
         path = filedialog.askopenfilename(parent=self.parent, title=prompt, initialdir=self.WorkingDirectory.get(), filetypes=gui_filetypes)
 
-        # Validate the path
-        if isinstance(path, str) is False:
-            return
-        else:
-            if path == "":
-                return
+        # Validate the path and process valid paths
+        if path:  # Filters None and '' path values
+            # Set the appropriate variables
+            self.current_paths[mode][file_position].set(path)\
+            self.current_filenames[mode][file_position].set(os.path.basename(path))
 
-        # Set the appropriate variable
-        self.current_paths[mode][file_position].set(path)
+            # Store the directory that the user last selected
+            self.WorkingDirectory.set(os.path.dirname(path))
 
-        # Store the directory that the user last selected
-        self.WorkingDirectory.set(os.path.dirname(path))
-
-        # Update the aircraft and ground object names
-        if mode in ['Aircraft', 'Ground'] and path.endswith(".dat") and file_position == 0:
-            self.update_air_gnd_label(mode, path)
+            # Update the aircraft and ground object names
+            if mode in ['Aircraft', 'Ground'] and path.endswith(".dat") and file_position == 0:
+                self.update_air_gnd_label(mode, path)
 
 
 
@@ -609,6 +610,12 @@ class PackBuilderGUI(Frame):
 
 
         # Perform dat file identify line validation and compare to stored data.
+
+
+        # Force Scenery names to replace spaces with underscores
+
+
+
         
 if __name__ == "__main__":
     main()
