@@ -33,6 +33,7 @@ from dataclasses import dataclass
 from enum import Enum
 from pathlib import PosixPath
 import csv
+import string
 
 
 
@@ -169,12 +170,16 @@ class PackBuilderGUI(Frame):
         PackFrame = LabelFrame(MainFrame, text="Pack Details")
         row_num = 0
         Label(PackFrame, text="Pack Name:").grid(row=row_num, column=0, sticky="W")
-        Entry(PackFrame, textvariable=self.PackName, width=40).grid(row=row_num, column=1, sticky="WE")
+        self.PackNameEntry = Entry(PackFrame, textvariable=self.PackName, width=40)
+        self.PackNameEntry.grid(row=row_num, column=1, sticky="WE")
+        self.PackNameEntry.bind('<FocusOut>', lambda e: self.validate_pack_username(e, 'PackName'))
         # TODO impliment gui element <leave> to validate the pack name could be part of the valid filestructure [aA-zZ][0-9][_-]
 
         row_num += 1
         Label(PackFrame, text="User Name:").grid(row=row_num, column=0, sticky="W")
-        Entry(PackFrame, textvariable=self.UserName, width=40).grid(row=row_num, column=1, sticky="WE")
+        self.UserNameEntry = Entry(PackFrame, textvariable=self.UserName, width=40)
+        self.UserNameEntry.grid(row=row_num, column=1, sticky="WE")
+        self.UserNameEntry.bind('<FocusOut>', lambda e: self.validate_pack_username(e, 'UserName'))
         # TODO impliment gui element <leave> to validate the username could be part of the valid filestructure [aA-zZ][0-9][_-]
         
         row_num += 1
@@ -200,11 +205,16 @@ class PackBuilderGUI(Frame):
         # Aircraft Preview Section
         AircraftPreviewFrame = Frame(AircraftFrame)
         AircraftListFrame = Frame(AircraftPreviewFrame)
-        air_listbox = Listbox(AircraftListFrame, width=20, height=15, font=("Helvetica",12), selectmode='SINGLE')
+        air_listbox = Listbox(AircraftListFrame, width=30, height=10, font=("Helvetica",12), selectmode='SINGLE')
         air_listbox.pack(side="left")
-        air_scrollbar = ttk.Scrollbar(AircraftListFrame, orient='vertical')
-        air_scrollbar.configure(command=air_listbox.yview)
-        air_scrollbar.pack(side='right', fill='y')
+        air_yscrollbar = ttk.Scrollbar(AircraftListFrame, orient='vertical')
+        air_yscrollbar.configure(command=air_listbox.yview)
+        air_yscrollbar.pack(side='right', fill='y')
+        
+        air_xscrollbar = ttk.Scrollbar(AircraftListFrame, orient='horizontal')
+        air_xscrollbar.configure(command=air_listbox.xview)
+        air_yscrollbar.pack(side='bottom', fill='x')
+        
         AircraftListFrame.pack(side="top")
         
         AircraftPreviewButtonFrame = Frame(AircraftPreviewFrame)
@@ -329,11 +339,95 @@ class PackBuilderGUI(Frame):
 
         # Pack up the frames
         MainFrame.pack()
-        PackFrame.pack()
+        PackFrame.pack(expand=True, fill='y')
         Notebook.pack(expand=True, fill='both')
         
         
-        
+
+    def update_air_gnd_label(self, zone, datfilepath):
+        """This function will be called to update the aircraft or ground object title
+        label at the top of the Aircraft and Ground Object Edit Frames.
+
+        Assumptions:
+        - The datfilepath has already been validated as a datfile
+
+        inputs
+        zone (str): 'Aircraft' or 'Ground'
+        datfilepath (str): os.path-like to where the dat file for the aircraft or ground object is located.
+
+        outputs
+        None - This function executes and will set the appropriate variables in the class
+        """
+
+        # Import DAT File
+        dat = list()
+        with open(datfilepath, mode='r') as dat_file:
+            dat = dat_file.readlines()
+
+        # Find aircraft/ground object name
+        identify_idx = 0
+        for line in dat:
+            if line.startswith("IDENTIFY"):
+                break
+            identify_idx += 1
+
+        # Remove unnecessary parts
+        name = dat[identify_idx][8:]
+        if '#' in name:
+            name = name.split('#')[0]
+        if '"' in name:
+            name = name.split('"')[1]
+
+        # Set the variable names
+        if zone == 'Aircraft':
+            self.AircraftName.set(name)
+        elif zone == 'Ground':
+            self.GroundObjectName.set(name)
+                
+    def validate_pack_username(self, event, mode):
+        """Validate the packname and username to ensure they are compatible with windows/mac/linux systems
+
+        Inputs
+        event (event): Tkinter event needed to run this function. NOT USED IN FUNCTION.
+        mode (str): "UserName" or "PackName"
+
+        Outputs
+        None - This function executes and will set the appropriate variables in the class
+        """
+        valid_chars = string.ascii_letters + string.digits + " _-.[]()+"
+
+        # Identify the name
+        name = None
+        if mode == 'UserName':
+            name = self.UserName.get()
+        elif mode == 'PackName':
+            name = self.PackName.get()
+
+        if isinstance(name, str):
+            # Determine if bad characters are present
+            okay_name = True
+            bad_chars = list()
+            if len(name) > 0:
+                for character in name:
+                    if character not in valid_chars:
+                        okay_name = False
+                        bad_chars.append(character)
+                    
+            if okay_name is False:
+                # Clean up the name:
+                for character in bad_chars:
+                    name = name.replace(character, "")
+                    
+                # Assign the name
+                if mode == "UserName":
+                    self.UserName.set(name)
+                elif mode == "PackName":
+                    self.PackName.set(name)
+
+                # Alert the user of the issue.
+                title = "Invalid characters detected in {}".format(mode)
+                info = "Tthe following invalid characters were removed from the {}:\n{}".format(mode, "".join(bad_chars))
+                messagebox.showinfo(parent=self.parent, title=title, message=info)
 
     def edit_aircraft_lst_entry(self):
         """Allow the user to edit the selected aircraft entry in the aircraft listbox."""
@@ -486,6 +580,10 @@ class PackBuilderGUI(Frame):
 
         # Set the appropriate variable
         self.current_paths[mode][file_position].set(path)
+
+        # Update the aircraft and ground object names
+        if mode in ['Aircraft', 'Ground'] and path.endswith(".dat") and file_position == 0:
+            self.update_air_gnd_label(mode, path)
 
 
     
