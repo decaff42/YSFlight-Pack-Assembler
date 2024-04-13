@@ -66,27 +66,34 @@ class PackBuilderGUI(Frame):
         self.air_entries = list()
         self.gnd_entries = list()
         self.sce_entries = list()
+        self.current_lst_edit_index = [None] * 3  # None indicates that we are not currently editing. will be replaced by the index in the air/gnd/sce_entries lists
 
-        # Define the output pack directory
+        # Define the output pack directory where the user will export an assembled pack to. Note: The tool will create
+        # the pack folder so we just need a place to put it. This could default to where the tool is located as a
+        # fixed default, or be placed as a setting for the user in the future.
         self.PackDirectory = StringVar(value = os.path.abspath(os.sep))
 
-        # Define where the models are located
+        # Store where a user last selected a file from as this is likely close to where their next file is and will
+        # therefore help them save a lot of time in folder navigation by simply storing that information.
         self.WorkingDirectory = StringVar(value = os.path.abspath(os.sep)) 
         
         # Define names that the user will input at various points
-        self.SceneryName = StringVar()
+        # The UserName and PackName be used to create folder/filenames in the pack file structure:
+        # [PackName].zip\user\[UserName]\[PackName]\[air/gnd/sce]\[files]
+        self.SceneryName = StringVar()  # Need a custom name for each map added to the LST
         self.UserName = StringVar()
         self.PackName = StringVar()
-        self.SceneryAirRace = IntVar(value=0)
+        self.SceneryAirRace = IntVar(value=0)  # Used to indicate if a map should have the AIRRACE flag added to it in the LST File.
 
-        # Define the aircraft and ground object name based on the DAT file.
+        # Define the aircraft and ground object name based on the DAT file. This will be displayed at the top of the
+        # Aircraft and Ground Object Edit frame so that the user can see what they are working on.
         self.AircraftName = StringVar(value='AIRCRAFT_NAME')
         self.GroundObjectName = StringVar(value='GROUND_OBJECT_NAME')
 
         # Define storage of the different LST file contents
         self.AircraftContents = list()
         self.GroundContents = list()
-        self.SceneryConntents = list()
+        self.SceneryContents = list()
                 
         # Define the the lst options
         self.lst_types = ['Aircraft', 'Ground', 'Scenery']  # validate mode inputs into functions
@@ -103,23 +110,7 @@ class PackBuilderGUI(Frame):
         filetypes['dnm srf'] = [("DynaModel or Surf File", "*.dnm *.srf")]
         self.filetypes = filetypes
 
-        # Define prompts for the file selection dialogs
-        prompts = dict()
-        prompts['Aircraft'] = ["Select The Aircraft's DAT File",
-                               "Select The Aircraft's Visual Model FIle",
-                               "Select The Aircraft's Collision Model File",
-                               "Select the Aircraft's Cockpit Model File",
-                               "Select The Aircraft's Coarse Model File"]
-        prompts['Ground'] = ["Select The Ground Object's DAT File",
-                             "Select The Ground Object's Visual Model FIle",
-                             "Select The Ground Object's Collision Model File",
-                             "Select The Ground Object's Cockpit Model File",
-                             "Select The Ground Object's Coarse Model File"]
-        prompts['Scenery'] = ["Select The Scenery's FLD File",
-                              "Select The Scenery's Start Position File",
-                              "Select The Scenery's Mission File"]
-        self.prompts = prompts        
-        
+
         # Define which files are required for a valid LST entry. Use None to fill in gaps so that all
         # definitions have the same length to avoid potential issues in the future.
         required_files = dict()
@@ -134,6 +125,17 @@ class PackBuilderGUI(Frame):
         labels['Ground'] = ['DAT', 'Visual Model', 'Collision', 'Cockpit', 'Coarse']
         labels['Scenery'] = ['Map', 'Start Position', 'Mission', '', '']
         self.labels = labels
+
+        # Define prompts for the file selection dialogs. Matches order of the labels and GUI.
+        prompts = dict()
+        for name, key in zip(['Aircraft', 'Ground Object', 'Scenery'], list(self.labels.keys())):
+            prompts[key] = list()
+            for label_name in self.labels[key]:
+                if label_name:
+                    prompts[key].append("Select the {}'s {} File".format(name, label_name))
+                else:  # Handle the empty parts of the Scenery label list or any future blank entries.
+                    prompts[key].append('')
+        self.prompts = prompts
 
         # Define the allowable file types for the different positions.
         # Make sure every element is a list so that they can all be parsed the same
@@ -151,7 +153,7 @@ class PackBuilderGUI(Frame):
     def gui_setup(self):
         """Create the User Interface"""
         # Window Title
-        self.parent.wm_title(__title__ + " v" + __version__)
+        self.parent.wm_title(self.title + " v" + self.version)
         
         # Window Geometry Controls
         self.parent.wm_resizable(width=True, height=True)
@@ -163,21 +165,45 @@ class PackBuilderGUI(Frame):
         #
         # Set up the file menus
         #
+        MenuBar = Menu(self.parent)
 
-        # Functions to Validate Pack filepaths & Identify Lines
+        # Setup the file menu
+        FileMenu = Menu(MenuBar, tearoff=0)
+        FileMenu.add_command(label="New Project")  # TODO: Add Command
+        FileMenu.add_command(label="Open Project")  # TODO: Add Command
+        FileMenu.add_command(label="Save Project")  # TODO: Add Command
+        FileMenu.add_separator()
+        FileMenu.add_command(label="Quit {}".format(self.title))
+        MenuBar.add_cascade(label="File", menu=FileMenu)
 
-        # Function to export
+        # Set up the Edit Menu
+        EditMenu = Menu(MenuBar, tearoff=0)
+        EditMenu.add_command(label="Export Pack")  # TODO: Add Command
+        EditMenu.add_command(label="Validate Pack")  # TODO: Add Command, should validate filepaths and IDENTIFY lines are still valid & unique
+        EditMenu.add_separator()
+        EditMenu.add_command(label="Edit LST Entry")  # TODO: Add Command, Note this needs to figure out what LST the user wants to edit.
+        EditMenu.add_command(label="Copy LST Entry")  # TODO: Add Command
+        EditMenu.add_separator()
+        EditMenu.add_command(label="Move Selected LST Entry Up")  # TODO: Add Command, Note this needs to figure out what LST the user wants adjust the order of
+        EditMenu.add_command(label="Move Selected LST Entry Down")  # TODO: Add Command, Note this needs to figure out what LST the user wants adjust the order of
+        MenuBar.add_cascade(label="Edit", menu=EditMenu)
 
-        # Function to move listbox entry up and down
+        # Set up the Settings Menu
+        SettingsMenu = Menu(MenuBar, tearoff=0)
+        SettingsMenu.add_command(label="Edit Settings")  # TODO: Add Command, Note this should be a complex GUI Popup
+        SettingsMenu.add_command(label="Set Default Working Directory")  # TODO: Add Command
+        SettingsMenu.add_command(label="Set Default Username")  # TODO: Add Command
+        MenuBar.add_cascade(label="Settings", menu=SettingsMenu)
 
-        # Function to Edit an existing LST entry
+        # Set up the Help Menu
+        HelpMenu = Menu(MenuBar, tearoff=0)
+        HelpMenu.add_command(label="Help")  # TODO: Add Command
+        HelpMenu.add_command(label="About")  # TODO: Add Command
+        MenuBar.add_cascade(label="Help", menu=HelpMenu)
 
-        # Function to Copy an existing LST Entry
+        # Add the Menu
+        self.parent.config(menu=MenuBar)
 
-
-        # Settings menu to
-        # - Set default username
-        # - Set default modding directory
 
         # Setup the Frames
         MainFrame = Frame()        
@@ -214,30 +240,37 @@ class PackBuilderGUI(Frame):
         # Button(PackFrame, text="Select", command=self.select_pack_directory).grid(row=row_num, column=2)
 
         # Start a notebook to hold aircraft, ground object and scenery inputs
-        Notebook = ttk.Notebook(MainFrame)
+        LstNotebook = ttk.Notebook(MainFrame)
 
         #
         # Build the aircraft Tab
         #
         # This is where the user will select the dat, visual, collission, cockpit, and coarse models for
         # an aircraft lst line item.
-        AircraftFrame = Frame(Notebook)
+        AircraftFrame = Frame(LstNotebook)
 
         # Aircraft Preview Section
         AircraftPreviewFrame = Frame(AircraftFrame)
+
+        # Start with a listbox to show the different aircraft that have been loaded in the program. This will display
+        # the identify line of the aircraft's DAT file or in a future update: a user-selected IDENTIFY line to overwrite
+        # the identify line of an existing DAT FILE that will be copied and used for the LST entry.
         AircraftListFrame = Frame(AircraftPreviewFrame)
         air_listbox = Listbox(AircraftListFrame, width=30, height=10, font=("Helvetica",12), selectmode='SINGLE')
         air_listbox.grid(row=0, column=0, sticky="NSWE")
         air_yscrollbar = ttk.Scrollbar(AircraftListFrame, orient='vertical')
         air_yscrollbar.configure(command=air_listbox.yview)
         air_yscrollbar.grid(row=0, column=1, sticky="NSWE")
-        
+
+        # To account for long IDENTIFY names beyond the 30 character width of the listbox we will have a x scrollbar.
         air_xscrollbar = ttk.Scrollbar(AircraftListFrame, orient='horizontal')
         air_xscrollbar.configure(command=air_listbox.xview)
         air_xscrollbar.grid(row=1, column=0, sticky="NSWE")
         
         AircraftListFrame.pack(side="top")
-        
+
+        # At the bottom of the listbox we want buttons to control some user functionality to either edit or delete
+        # an LST entry.
         AircraftPreviewButtonFrame = Frame(AircraftPreviewFrame)
         Button(AircraftPreviewButtonFrame, text="Edit").grid(row=0, column=0, sticky="NSWE")  #TODO: Add Command
         Button(AircraftPreviewButtonFrame, text="Delete").grid(row=0, column=1, sticky="NSWE")  #TODO: Add Command
@@ -274,7 +307,7 @@ class PackBuilderGUI(Frame):
         #
         # This is where the user will select the dat, visual, collission, cockpit, and coarse models for
         # a ground object lst line item.
-        GroundFrame = Frame(Notebook)
+        GroundFrame = Frame(LstNotebook)
         
         # Ground Object Preview Section
         GroundPreviewFrame = Frame(GroundFrame)
@@ -290,7 +323,7 @@ class PackBuilderGUI(Frame):
         # Build the Scenery Tab
         #
         # This is where the user will input a scenery name and select an fld, stp, and optional yfs file.
-        SceneryFrame = Frame(Notebook)
+        SceneryFrame = Frame(LstNotebook)
 
         # Scenery Preview Selection
         SceneryPreviewFrame = Frame(SceneryFrame)
@@ -326,15 +359,15 @@ class PackBuilderGUI(Frame):
         SceneryEditFrame.pack(side='right')
         SceneryFrame.pack()
 
-        # Add the Aircraft, Ground Object and Scenery Frames to the Note Book
-        Notebook.add(AircraftFrame, text='Aircraft')
-        Notebook.add(GroundFrame, text='Ground Objects')
-        Notebook.add(SceneryFrame, text='Scenery')
+        # Add the Aircraft, Ground Object, and Scenery Frames to the NoteBook Widget
+        LstNotebook.add(AircraftFrame, text='Aircraft')
+        LstNotebook.add(GroundFrame, text='Ground Objects')
+        LstNotebook.add(SceneryFrame, text='Scenery')
 
         # Pack up the frames
         MainFrame.pack()
         PackFrame.pack(expand=True, fill='y')
-        Notebook.pack(expand=True, fill='both')
+        LstNotebook.pack(expand=True, fill='both')
 
     def save_pack_configuration(self):
         """This function is used to save un-completed pack progress into a file that can be loaded by this program to
