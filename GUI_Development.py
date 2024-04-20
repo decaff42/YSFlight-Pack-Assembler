@@ -13,13 +13,13 @@ on the user's selection of files. Will create LST files for the various addons d
 
 __title__ = "YSFlight Pack Builder"
 __version__ = "0.1.0"
-__author__ = "Decaff42"
-__copyright__ = "2024 by Decaff_42"
-__license__ = """Only non-commercial use with attribution is allowed without prior written permission from Decaff_42."""
+__author__ = "Decaff42 & MartinDutchie"
+__copyright__ = "2024 by Decaff_42 & MartinDutchie"
+__license__ = """Only non-commercial use is allowed without prior written permission."""
 
 
 # Import standard Python Modules
-from tkinter import filedialog, messagebox
+from tkinter import filedialog, messagebox, simpledialog
 from tkinter import ttk
 from tkinter import *
 from tkinter.ttk import *
@@ -51,17 +51,11 @@ class PackBuilderGUI(Frame):
         self.author = author
         self.copyright_notice = copyright_notice
 
-        # Define filepaths that the user selects for the lst contents - These are Absolute Paths
+        # Define filepaths that the user selects for the lst contents - These are Absolute Paths. The
+        # user will have the filenames displayed so that they can actually determine if they have the
+        # correct file in selected after the fact.
         self.current_paths = {'Aircraft':[StringVar() for _ in range(0,5)], 'Ground':[StringVar() for _ in range(0,5)], 'Scenery':[StringVar() for _ in range(0,3)]}
         self.current_filenames = {'Aircraft':[StringVar() for _ in range(0,5)], 'Ground':[StringVar() for _ in range(0,5)], 'Scenery':[StringVar() for _ in range(0,3)]}
-        # self.current_paths['Aircraft'][0].set('/')
-
-        # Define the lists that will hold lst entry class instances. This will be the basis for the order of appearance
-        # in the various listboxes.
-        self.air_entries = list()
-        self.gnd_entries = list()
-        self.sce_entries = list()
-        self.current_lst_edit_index = [None] * 3  # None indicates that we are not currently editing. will be replaced by the index in the air/gnd/sce_entries lists
 
         # Define the output pack directory where the user will export an assembled pack to. Note: The tool will create
         # the pack folder so we just need a place to put it. This could default to where the tool is located as a
@@ -70,7 +64,7 @@ class PackBuilderGUI(Frame):
 
         # Store where a user last selected a file from as this is likely close to where their next file is and will
         # therefore help them save a lot of time in folder navigation by simply storing that information.
-        self.WorkingDirectory = StringVar(value = os.path.abspath(os.sep)) 
+        self.WorkingDirectory = StringVar(value = os.path.abspath(os.sep))
         
         # Define names that the user will input at various points
         # The UserName and PackName be used to create folder/filenames in the pack file structure:
@@ -78,18 +72,19 @@ class PackBuilderGUI(Frame):
         self.SceneryName = StringVar()  # Need a custom name for each map added to the LST
         self.UserName = StringVar()
         self.PackName = StringVar()
-        self.SceneryAirRace = IntVar(value=0)  # Used to indicate if a map should have the AIRRACE flag added to it in the LST File.
+        self.SceneryAirRace = IntVar(value=0)  # Used to indicate if a map should have the AIR RACE flag added to it in the LST File.
 
         # Define the aircraft and ground object name based on the DAT file. This will be displayed at the top of the
         # Aircraft and Ground Object Edit frame so that the user can see what they are working on.
-        self.AircraftName = StringVar(value='AIRCRAFT_NAME')
-        self.GroundObjectName = StringVar(value='GROUND_OBJECT_NAME')
+        self.default_aircraft_name = 'AIRCRAFT_NAME'  # Could be a setting
+        self.default_ground_object_name = 'GROUND_OBJECT_NAME'  # Could be a setting
+        self.AircraftName = StringVar(value=self.default_aircraft_name)
+        self.GroundObjectName = StringVar(value=self.default_ground_object_name)
 
         # Define storage of the different LST file contents
-        self.AircraftContents = list()
-        self.GroundContents = list()
-        self.SceneryContents = list()
-                
+        self.lst_entries = {'Aircraft': [], 'Ground': [], 'Scenery': []}
+        self.current_lst_edit_index = [-1] * 3  # None indicates that we are not currently editing. will be replaced by the index in the air/gnd/sce_entries lists
+
         # Define the the lst options
         self.lst_types = ['Aircraft', 'Ground', 'Scenery']  # validate mode inputs into functions
         self.lst_file_prefixes = ['air', 'gnd', 'sce']  # Validate which lst file we are importing or exporting.
@@ -105,7 +100,6 @@ class PackBuilderGUI(Frame):
         filetypes['yfs'] = [("Mission File", "*.yfs")]
         filetypes['dnm srf'] = [("DynaModel or Surf File", "*.dnm *.srf")]
         self.filetypes = filetypes
-
 
         # Define which files are required for a valid LST entry. Use None to fill in gaps so that all
         # definitions have the same length to avoid potential issues in the future.
@@ -144,11 +138,15 @@ class PackBuilderGUI(Frame):
 
         # Define how wide the list boxes should be (# of characters)
         self.listbox_width = 30
+        self.listbox_height = 15
+
+        # Define variables that should move to a settings file.
+        self.ask_before_delete_lst = True
         
         # Setup the GUI
         self.gui_setup()
-        
-        
+        # self.load_settings()
+
     def gui_setup(self):
         """Create the User Interface"""
         # Window Title
@@ -168,43 +166,42 @@ class PackBuilderGUI(Frame):
 
         # Setup the file menu
         FileMenu = Menu(MenuBar, tearoff=0)
-        FileMenu.add_command(label="New Project")  # TODO: Add Command
-        FileMenu.add_command(label="Open Project")  # TODO: Add Command
-        FileMenu.add_command(label="Save Project")  # TODO: Add Command
+        FileMenu.add_command(label="New Project", command=self.new_pack_configuration)
+        FileMenu.add_command(label="Open Project", command=self.load_pack_configuration)
+        FileMenu.add_command(label="Save Project", command=self.save_pack_configuration)
         FileMenu.add_separator()
         FileMenu.add_command(label="Quit {}".format(self.title))
         MenuBar.add_cascade(label="File", menu=FileMenu)
 
         # Set up the Edit Menu
         EditMenu = Menu(MenuBar, tearoff=0)
-        EditMenu.add_command(label="Export Pack")  # TODO: Add Command
-        EditMenu.add_command(label="Validate Pack")  # TODO: Add Command, should validate filepaths and IDENTIFY lines are still valid & unique
+        EditMenu.add_command(label="Export Pack", command=self.assemble_pack)
+        EditMenu.add_command(label="Validate Pack", command=self.validate_pack_structure)
         EditMenu.add_separator()
-        EditMenu.add_command(label="Edit LST Entry")  # TODO: Add Command, Note this needs to figure out what LST the user wants to edit.
-        EditMenu.add_command(label="Copy LST Entry")  # TODO: Add Command
+        EditMenu.add_command(label="Edit LST Entry", command=self.edit_lst_entry)
+        EditMenu.add_command(label="Copy LST Entry", command=self.copy_lst_entry)
         EditMenu.add_separator()
-        EditMenu.add_command(label="Move Selected LST Entry Up")  # TODO: Add Command, Note this needs to figure out what LST the user wants adjust the order of
-        EditMenu.add_command(label="Move Selected LST Entry Down")  # TODO: Add Command, Note this needs to figure out what LST the user wants adjust the order of
+        EditMenu.add_command(label="Move Selected LST Entry Up", command=self.move_selected_lst_entry_up)
+        EditMenu.add_command(label="Move Selected LST Entry Down", command=self.move_selected_lst_entry_down)
         MenuBar.add_cascade(label="Edit", menu=EditMenu)
 
         # Set up the Settings Menu
         SettingsMenu = Menu(MenuBar, tearoff=0)
-        SettingsMenu.add_command(label="Edit Settings")  # TODO: Add Command, Note this should be a complex GUI Popup
-        SettingsMenu.add_command(label="Set Default Working Directory")  # TODO: Add Command
-        SettingsMenu.add_command(label="Set Default Username")  # TODO: Add Command
+        SettingsMenu.add_command(label="Edit Settings", command=self.edit_settings)
+        SettingsMenu.add_command(label="Set Default Working Directory", command=self.ask_default_working_directory)
+        SettingsMenu.add_command(label="Set Default Username", command=self.ask_username)
         MenuBar.add_cascade(label="Settings", menu=SettingsMenu)
 
         # Set up the Help Menu
         HelpMenu = Menu(MenuBar, tearoff=0)
-        HelpMenu.add_command(label="Help")  # TODO: Add Command
-        HelpMenu.add_command(label="About")  # TODO: Add Command
+        HelpMenu.add_command(label="Help", command=self.get_user_help)
+        HelpMenu.add_command(label="About", command=self.show_about)
         MenuBar.add_cascade(label="Help", menu=HelpMenu)
 
-        # Add the Menu
+        # Add the Menu to the GUI
         self.parent.config(menu=MenuBar)
 
-
-        # Setup the Frames
+        # Put all frames inside a main Frame widget.
         MainFrame = Frame()
 
         #
@@ -214,22 +211,23 @@ class PackBuilderGUI(Frame):
         # in future releases it is expected that the username will become a setting and that the user will not have to
         # keep defining it when they create a new project.
         #
-
-        # TODO: investigate if the PackNameEntry and UserNameEntry can be local instead of class variables.
-
         PackFrame = LabelFrame(MainFrame, text="Pack Details")
         row_num = 0
         Label(PackFrame, text="Pack Name:").grid(row=row_num, column=0, sticky="W")
-        self.PackNameEntry = Entry(PackFrame, textvariable=self.PackName, width=40)
-        self.PackNameEntry.grid(row=row_num, column=1, sticky="WE")
-        self.PackNameEntry.bind('<FocusOut>', lambda e: self.validate_pack_username(e, 'PackName'))
+        PackNameEntry = Entry(PackFrame, textvariable=self.PackName, width=40)
+        PackNameEntry.grid(row=row_num, column=1, sticky="WE")
+        PackNameEntry.bind('<FocusOut>', lambda e: self.validate_pack_username(e, 'PackName'))
 
         row_num += 1
         Label(PackFrame, text="User Name:").grid(row=row_num, column=0, sticky="W")
-        self.UserNameEntry = Entry(PackFrame, textvariable=self.UserName, width=40)
-        self.UserNameEntry.grid(row=row_num, column=1, sticky="WE")
-        self.UserNameEntry.bind('<FocusOut>', lambda e: self.validate_pack_username(e, 'UserName'))
-        
+        UserNameEntry = Entry(PackFrame, textvariable=self.UserName, width=40)
+        UserNameEntry.grid(row=row_num, column=1, sticky="WE")
+        UserNameEntry.bind('<FocusOut>', lambda e: self.validate_pack_username(e, 'UserName'))
+
+        # The information that would be provided in these commented out entry widgets will be provide in other ways:
+        # - WorkingDirectory will either be provided by the user in a setting, or set by the first select_file call.
+        # - PackDirectory will now only be set by the user when they actually export the pack.
+
         # row_num += 1
         # Label(PackFrame, text="Modding Directory:").grid(row=row_num, column=0, sticky="W")
         # Entry(PackFrame, textvariable=self.WorkingDirectory, width=40).grid(row=row_num, column=1)
@@ -257,24 +255,30 @@ class PackBuilderGUI(Frame):
         # the identify line of the aircraft's DAT file or in a future update: a user-selected IDENTIFY line to overwrite
         # the identify line of an existing DAT FILE that will be copied and used for the LST entry.
         AircraftListFrame = Frame(AircraftPreviewFrame)
-        air_listbox = Listbox(AircraftListFrame, width=self.listbox_width, height=10, font=("Helvetica",12), selectmode='SINGLE')
-        air_listbox.grid(row=0, column=0, sticky="NSWE")
+        AircraftMoveLSTButtonFrame = Frame(AircraftListFrame, width=10)
+        pixel = PhotoImage(width=1, height=1)
+        Button(AircraftMoveLSTButtonFrame, image=pixel, width=1, text=u'\u2191', command=self.move_selected_lst_entry_up).grid(row=0,column=0)
+        Button(AircraftMoveLSTButtonFrame, image=pixel, width=1, text=u'\u2193', command=self.move_selected_lst_entry_down).grid(row=1, column=0)
+        AircraftMoveLSTButtonFrame.grid(row=0, column=0)
+
+        self.air_listbox = Listbox(AircraftListFrame, width=self.listbox_width, height=self.listbox_height, font=("Helvetica",12), selectmode='SINGLE')
+        self.air_listbox.grid(row=0, column=1, sticky="NSWE")
         air_yscrollbar = ttk.Scrollbar(AircraftListFrame, orient='vertical')
-        air_yscrollbar.configure(command=air_listbox.yview)
-        air_yscrollbar.grid(row=0, column=1, sticky="NSWE")
+        air_yscrollbar.configure(command=self.air_listbox.yview)
+        air_yscrollbar.grid(row=0, column=2, sticky="NSWE")
 
         # To account for long IDENTIFY names beyond the 30 character width of the listbox we will have a x scrollbar.
         air_xscrollbar = ttk.Scrollbar(AircraftListFrame, orient='horizontal')
-        air_xscrollbar.configure(command=air_listbox.xview)
-        air_xscrollbar.grid(row=1, column=0, sticky="NSWE")
+        air_xscrollbar.configure(command=self.air_listbox.xview)
+        air_xscrollbar.grid(row=1, column=1, sticky="NSWE")
         
-        AircraftListFrame.pack(side="top")
+        AircraftListFrame.pack(side="top", padx=5, pady=5)
 
         # At the bottom of the listbox we want buttons to control some user functionality to either edit or delete
         # an LST entry.
         AircraftPreviewButtonFrame = Frame(AircraftPreviewFrame)
-        Button(AircraftPreviewButtonFrame, text="Edit").grid(row=0, column=0, sticky="NSWE")  #TODO: Add Command
-        Button(AircraftPreviewButtonFrame, text="Delete").grid(row=0, column=1, sticky="NSWE")  #TODO: Add Command
+        Button(AircraftPreviewButtonFrame, text="Edit", command=self.edit_lst_entry).grid(row=0, column=0, sticky="NSWE")
+        Button(AircraftPreviewButtonFrame, text="Delete", command=self.delete_lst_entry).grid(row=0, column=1, sticky="NSWE")
         AircraftPreviewButtonFrame.pack(side='bottom')
         AircraftPreviewFrame.pack(side="left")
         
@@ -290,17 +294,21 @@ class PackBuilderGUI(Frame):
             txt = self.labels['Aircraft'][file_position] + ":"
             if self.required_files['Aircraft']:
                 txt += " *"
+
             Label(AircraftEntryFrame, text=self.labels['Aircraft'][file_position]).grid(row=row_num, column=0, sticky="W")
             Entry(AircraftEntryFrame, textvariable=self.current_filenames['Aircraft'][file_position], width=30).grid(row=row_num, column=1, sticky="NSWE")
-            Button(AircraftEntryFrame, text="Select", command=lambda: self.select_file(file_position)).grid(row=row_num, column=2, sticky="NSWE")
+
+            # Need the lambda x=file_position in order to have the current value of file_position at time of the Button
+            # creation to stay stored in this button.
+            Button(AircraftEntryFrame, text="Select", command=lambda x=file_position: self.select_file(x)).grid(row=row_num, column=2, sticky="NSWE")
         AircraftEntryFrame.pack()
 
         AircraftEditButtonFrame = Frame(AircraftEditFrame)
-        Button(AircraftEditButtonFrame, text="Save").grid(row=0,column=0, sticky="NSWE")  # TODO Add Command
+        Button(AircraftEditButtonFrame, text="Save", command=self.save_lst_entry).grid(row=0,column=0, sticky="NSWE")
         Button(AircraftEditButtonFrame, text="Clear All Inputs", command=self.clear_paths).grid(row=0,column=1, sticky="NSWE")
         AircraftEditButtonFrame.pack()
         
-        AircraftEditFrame.pack(side='right')
+        AircraftEditFrame.pack(side='right', padx=15)
         AircraftFrame.pack()
 
         #
@@ -313,6 +321,7 @@ class PackBuilderGUI(Frame):
         # Ground Object Preview Section
         GroundPreviewFrame = Frame(GroundFrame)
         GroundPreviewButtonFrame = Frame(GroundPreviewFrame)
+        self.gnd_listbox = Listbox(GroundPreviewFrame, width=self.listbox_width, height=self.listbox_height, font=("Helvetica",12), selectmode='SINGLE')
 
         # Ground Object Edit Section
         GroundEditFrame = Frame(GroundFrame)
@@ -329,6 +338,7 @@ class PackBuilderGUI(Frame):
         # Scenery Preview Selection
         SceneryPreviewFrame = Frame(SceneryFrame)
         SceneryPreviewButtonFrame = Frame(SceneryPreviewFrame)
+        self.sce_listbox = Listbox(SceneryPreviewFrame, width=self.listbox_width, height=self.listbox_height, font=("Helvetica", 12), selectmode='SINGLE')
 
         # Scenery Edit Selection
         SceneryEditFrame = Frame(SceneryFrame)
@@ -346,14 +356,17 @@ class PackBuilderGUI(Frame):
                 txt += " *"
             Label(SceneryEntryFrame, text=txt).grid(row=row_num, column=0, sticky="W")
             Entry(SceneryEntryFrame, textvariable=self.current_filenames['Scenery'][file_position], width=30).grid(row=row_num, column=1, sticky="WE")
-            Button(SceneryEntryFrame, text="Select", command=lambda: self.select_file(file_position)).grid(row=row_num, column=2, sticky="NSWE")
+
+            # Need the lambda x=file_position in order to have the current value of file_position at time of the Button
+            # creation to stay stored in this button.
+            Button(SceneryEntryFrame, text="Select", command=lambda x=file_position: self.select_file(x)).grid(row=row_num, column=2, sticky="NSWE")
 
         row_num += 1
         Checkbutton(SceneryEntryFrame, text="YSFlight 2018+ Air Race Map?", variable=self.SceneryAirRace, onvalue=1, offvalue=0).grid(row=row_num, column=1, sticky='w')
         SceneryEntryFrame.pack()
 
         SceneryEditButtonFrame = Frame(SceneryEditFrame)
-        Button(SceneryEditButtonFrame, text="Save").grid(row=0,column=0, sticky="NSWE")  # TODO Add Command
+        Button(SceneryEditButtonFrame, text="Save", command=self.save_lst_entry).grid(row=0,column=0, sticky="NSWE")
         Button(SceneryEditButtonFrame, text="Clear All Inputs", command=self.clear_paths).grid(row=0,column=1, sticky="NSWE")
         SceneryEditButtonFrame.pack()
         
@@ -371,12 +384,117 @@ class PackBuilderGUI(Frame):
         LstNotebook.pack(expand=True, fill='both')
         LstNotebook.bind('<<NotebookTabChanged>>', self.on_tab_change)
 
+    def functionality_not_available_popup(self, function_name):
+        messagebox.showinfo(parent=self,
+                            title="Functionality Not Yet Implemented",
+                            message="{} has not yet been implemented.".format(function_name))
+    
+    def get_user_help(self):
+        """Provide a URL or some other way to provide a tutorial to the user.
+
+        This function will be used in the future and for now is undeveloped
+        """
+        self.functionality_not_available_popup("get_user_help")
+
+    def show_about(self):
+        """Display basic information about the program for the user"""
+        key_total_width = 15
+        msg = self.title + "\n\n"
+        msg += "{}{}\n".format("Version:".ljust(key_total_width), self.version)
+        msg += "{}{}\n\n".format("Authors:".ljust(key_total_width), self.author)
+        msg += "Copyright {}".format(self.copyright_notice)
+        messagebox.showinfo(title="About", message=msg)
+
+    def ask_username(self):
+        """ask the user to input their username"""
+
+        self.functionality_not_available_popup("ask_username")
+
+        # username = simpledialog.askstring(parent=self,
+        #                                   title="What is your YSFlight Username?",
+        #                                   prompt="This will be used as the name of your folder in YSFLIGHT/user")
+        # if username:
+        #     self.UserName.set(username)
+
+    def ask_default_working_directory(self):
+        """Have the user select a folder where they keep their modding WIP files
+
+        This function will be used in the future and for now is undeveloped
+        """
+        self.functionality_not_available_popup("ask_default_working_directory")
+
+    def edit_settings(self):
+        """Open a GUI dialog of the settings that a user would like to set
+
+        This function will be used in the future and for now is undeveloped
+        """
+        self.functionality_not_available_popup("edit_settings")
+
+    def move_selected_lst_entry_up(self):
+        """Will take a selected LST entry and move it up the listbox
+
+        This function will be used in the future and for now is undeveloped
+        """
+        self.functionality_not_available_popup("move_selected_lst_entry_up")
+
+    def move_selected_lst_entry_down(self):
+        """Will take a selected LST entry and move it down the listbox
+
+        This function will be used in the future and for now is undeveloped
+        """
+        self.functionality_not_available_popup("move_selected_lst_entry_down")
+
+    def copy_lst_entry(self):
+        """Will take a selected LST entry and load the contents into the GUI for the purpose of creating a new LST Entry
+        based on the selected one.
+
+        This function will be used in the future and for now is undeveloped
+        """
+        self.functionality_not_available_popup("copy_lst_entry")
+
+    def edit_lst_entry(self):
+        """Will take a selected LST entry and load the contents into the GUI for editing purposes
+
+        This function will be used in the future and for now is undeveloped
+        """
+        self.functionality_not_available_popup("edit_lst_entry")
+
+    def delete_lst_entry(self):
+        """Will take a selected LST entry and delete it.
+
+        This function will be used in the future and for now is undeveloped
+        """
+        self.functionality_not_available_popup("edit_lst_entry")
+
+        # Ensure that there is an option selected in the current Tab's Listbox
+
+        # If the user wants a warning before deleting an LST entry, ask them self.ask_before_delete_lst
+
+        # Delete LST entry from appropriate list of LST Entries
+
+        # Re-set the listbox entries.
+
+    def validate_pack_structure(self):
+        """Validate that filepaths still exist and that IDENTIFY and SCENERY NAMEs are unique
+
+        This function will be used in the future and for now is undeveloped
+        """
+        self.functionality_not_available_popup("new_pack_configuration")
+
+    def new_pack_configuration(self):
+        """This function is used to unload any and all saved and unsaved work to prepare for a new project
+
+        This function will be used in the future and for now is undeveloped
+        """
+        self.functionality_not_available_popup("new_pack_configuration")
+
     def save_pack_configuration(self):
         """This function is used to save un-completed pack progress into a file that can be loaded by this program to
         initialize class instances.
 
         This function will be used in the future and for now is undeveloped
         """
+        self.functionality_not_available_popup("save_pack_configuration")
 
     def load_pack_configuration(self):
         """This function is used to load an un-completed pack progress into the program from a file written by
@@ -384,18 +502,108 @@ class PackBuilderGUI(Frame):
 
         This function will be used in the future and for now is undeveloped
         """
+        self.functionality_not_available_popup("load_pack_configuration")
 
     def save_settings(self):
         """Save user settings
 
         This function will be used in the future and for now is undeveloped
         """
+        self.functionality_not_available_popup("save_settings")
 
     def import_settings(self):
         """Import user settings that they previously setup
 
         This function will be used in the future and for now is undeveloped
         """
+        self.functionality_not_available_popup("import_settings")
+
+    def save_lst_entry(self):
+        """Save the LST Entry from the active tab and insert it's LST Entry class instance into the appropriate list"""
+
+        # Identify any missing required files. Use the labels in the GUI.
+        required_files_missing = list()
+        for idx, (path, required) in enumerate(zip(self.current_paths[self.current_mode], self.required_files[self.current_mode])):
+            # This method will verify that we don't have a "", or a non-set StringVar
+            if os.path.isfile(path.get()) is False and required is True:
+                required_files_missing.append("\n- {}".format(self.labels[self.current_mode][idx]))
+
+        # Alert the user that a file is missing.
+        if len(required_files_missing) > 0:
+            # Determine which files are missing based on the index
+            title = "Missing Required Files for {} LST Entries".format(self.current_mode)
+            msg = "The following files were either not defined or are no longer in their identified position:\n"
+            for line in required_files_missing:
+                msg += line
+
+            # Inform the user of the issue and then do not proceed with the execution of this function.
+            messagebox.showerror(parent=self, title=title, message=msg)
+            return
+
+        # Check to see if the IDENTIFY or SceneryName that we are adding is a duplicate
+        if ((self.current_mode == 'Scenery' and self.SceneryName in self.sce_listbox.get(0,END)) or
+            (self.current_mode == 'Aircraft' and self.AircraftName in self.air_listbox.get(0,END)) or
+            (self.current_mode == 'Ground' and self.GroundObjectName in self.gnd_listbox.get(0,END))):
+            temp = ['Aircraft', 'Ground Object', 'Scenery']
+            temp2 = ['IDENTIFY', 'IDENTIFY', 'Scenery Name']
+            title = "Duplicate {} {} Detected".format(temp[self.lst_types.index(self.current_mode)], temp2[self.lst_types.index(self.current_mode)])
+            msg = "All {}s must be unique in a pack".format(temp2[self.lst_types.index(self.current_mode)])
+            messagebox.showerror(parent=self, title=title, message=msg)
+
+            # TODO: Give user option to define new IDENTIFY Name and continue after checking it.
+            return
+
+        # Initialize an LST class instance for the type of LST we are working on and then add the appropriate values
+        if self.current_mode == 'Scenery':
+            lst_entry = SceLSTEntry()
+        else:
+            lst_entry = AirGndLSTEntry()
+
+        # Assemble the necessary information into a dictionary and set values in the class instance. Use a loop to
+        # automatically handle the routine information.
+        transfer = dict()
+        for label, value in zip(self.labels[self.current_mode], self.current_paths[self.current_mode]):
+            if label:
+                transfer[label.replace(" ","_")] = value.get()  # The replace is here as well as in the classes for redundancy
+
+        # Handle the unique information that isn't common between the different types of LST Entries.
+        if self.current_mode == "Scenery":
+            transfer['map_name'] = self.SceneryName.get()
+            transfer['air_race'] = False
+            if self.SceneryAirRace.get() == 1:
+                transfer['air_race'] = True
+        elif self.current_mode == "Aircraft":
+            transfer['IDENTIFY'] = self.AircraftName.get()
+        elif self.current_mode == "Ground":
+            transfer['IDENTIFY'] = self.GroundObjectName.get()
+
+        # Assign values extracted from the GUI into the LST Entry class instance.
+        lst_entry.assign_values(transfer)
+
+        # Determine if we are appending to the list or replacing an existing lst entry in the storage lists
+        if self.current_lst_edit_index[self.lst_types.index(self.current_mode)] > -1:
+            # Currently editing an lst entry
+            self.lst_entries[self.current_mode][self.current_lst_edit_index[self.lst_types.index(self.current_mode)]] = lst_entry
+
+            # Reset the editing notation as the user has saved the information.
+            self.current_lst_edit_index[self.lst_types.index(self.current_mode)] = -1
+        else:
+            self.lst_entries[self.current_mode].append(lst_entry)
+
+        # Update the Listbox Entries
+        self.update_listbox()
+
+        # Clear the GUI fields
+        self.clear_paths(ask=False)
+        if self.current_mode == 'Scenery':
+            self.SceneryName.set("")
+            self.SceneryAirRace.set(0)
+        elif self.current_mode == 'Ground':
+            self.GroundObjectName.set(self.default_aircraft_name)
+        elif self.current_mode == 'Aircraft':
+            self.AircraftName.set(self.default_ground_object_name)
+
+        # self.functionality_not_available_popup("save_lst_entry")
 
     def update_air_gnd_label(self, datfilepath):
         """This function will be called to update the aircraft or ground object title
@@ -410,25 +618,8 @@ class PackBuilderGUI(Frame):
         outputs
         None - This function executes and will set the appropriate variables in the class
         """
-
-        # Import DAT File
-        dat = list()
-        with open(datfilepath, mode='r') as dat_file:
-            dat = dat_file.readlines()
-
-        # Find aircraft/ground object name
-        identify_idx = 0
-        for line in dat:
-            if line.startswith("IDENTIFY"):
-                break
-            identify_idx += 1
-
-        # Remove unnecessary parts
-        name = dat[identify_idx][8:]
-        if '#' in name:
-            name = name.split('#')[0]
-        if '"' in name:
-            name = name.split('"')[1]
+        # Get the identify line form the dat file
+        name = extract_identify_from_dat(datfilepath)
 
         # Set the variable names
         if self.current_mode == 'Aircraft':
@@ -436,7 +627,7 @@ class PackBuilderGUI(Frame):
         elif self.current_mode == 'Ground':
             self.GroundObjectName.set(name)
                 
-    def validate_pack_username(self, event, mode):
+    def validate_pack_username(self, _, mode):
         """Validate the packname and username to ensure they are compatible with windows/mac/linux systems
 
         Inputs
@@ -479,10 +670,12 @@ class PackBuilderGUI(Frame):
                 # Alert the user of the issue.
                 title = "Invalid characters detected in {}".format(mode)
                 info = "Tthe following invalid characters were removed from the {}:\n{}".format(mode, "".join(bad_chars))
-                messagebox.showinfo(parent=self.parent, title=title, message=info)
+                messagebox.showinfo(parent=self, title=title, message=info)
 
     def edit_aircraft_lst_entry(self):
         """Allow the user to edit the selected aircraft entry in the aircraft listbox."""
+
+        self.functionality_not_available_popup("edit_aircraft_lst_entry")
 
         # Check to make sure that the user has selected something in the aircraft listbox.
 
@@ -517,18 +710,21 @@ class PackBuilderGUI(Frame):
         # Determine if there are any currently loaded paths that we should ask the user if
         # they want to delete them.
         paths = self.current_paths[self.current_mode]
-        if any([True for path in paths if len(path.get()) > 0]) or ask is True:
-            # Ask the user if they reeaaaaaallly want to delete all the paths.
-            prompt = "Are you sure you want to delete all of the {} filepaths you have entered?".format(self.current_mode)
-            title = "Delete all {} Filepaths?".format(self.current_mode)
+        if ask is True:
+            if any([True for path in paths if len(path.get()) > 0]):
+                # Ask the user if they reeaaaaaallly want to delete all the paths.
+                prompt = "Are you sure you want to delete all of the {} filepaths you have entered?".format(self.current_mode)
+                title = "Delete all {} Filepaths?".format(self.current_mode)
 
-            answer = messagebox.askquestion(parent=self.parent, title=title, message=prompt)
+                answer = messagebox.askquestion(parent=self, title=title, message=prompt)
 
-            if answer is False or answer is None:
-                return   
+                if answer is False or answer is None:
+                    return
 
-        # Clear filepath inputs
-        self.current_paths[self.current_mode] = [StringVar()] * len(self.current_paths[self.current_mode])  # Account for the 5 vs 3 length difference
+        # Clear filepath inputs and Account for the 5 vs 3 length difference by using
+        num_entries = len(self.current_paths[self.current_mode])
+        self.current_paths[self.current_mode] = [StringVar() for _ in range(0, num_entries)]
+        self.current_filenames[self.current_mode] = [StringVar() for _ in range(0, num_entries)]
 
     def select_pack_directory(self):
         """Have the user select where they want their addon package to be assembled.
@@ -540,7 +736,7 @@ class PackBuilderGUI(Frame):
         - None - This function will set the appropriate class variable.
         """
         prompt = "Select the Directory where you want to assemble your addon package."
-        path = ttk.Filedialog.askdirectory(parent=self.parent, title=prompt, mustexist=True, initialdir = self.os.getcwd())
+        path = ttk.Filedialog.askdirectory(parent=self, title=prompt, mustexist=True, initialdir = self.os.getcwd())
 
         # Validate the path
         if isinstance(path, str) is False:
@@ -562,7 +758,7 @@ class PackBuilderGUI(Frame):
         - None - This function will set the appropriate class variable.
         """
         prompt = "Select the Directory where you have your modding files."
-        path = ttk.Filedialog.askdirectory(parent=self.parent, title=prompt, mustexist=True, initialdir = self.os.getcwd())
+        path = filedialog.askdirectory(parent=self, title=prompt, mustexist=True, initialdir=self.WorkingDirectory.get())
 
         # Validate the path
         if path:
@@ -576,7 +772,6 @@ class PackBuilderGUI(Frame):
         file_position (int): an integer of range 0 to 4 that indicates what position in the LST File the file being
                              selected is for and also corresponds to the vertical order of the GUI elements for selecting
                              these files.
-
         Outputs
         None - This function will set the appropriate variables in the class.
         
@@ -615,7 +810,7 @@ class PackBuilderGUI(Frame):
         gui_filetypes.append(("All Files", "*.*"))  # Always give the user an option to select all files.
 
         # Get the filepath using GUI
-        path = filedialog.askopenfilename(parent=self.parent, title=prompt, initialdir=self.WorkingDirectory.get(), filetypes=gui_filetypes)
+        path = filedialog.askopenfilename(parent=self, title=prompt, initialdir=self.WorkingDirectory.get(), filetypes=gui_filetypes)
 
         # Validate the path and process valid paths
         if path:  # Filters None and '' path values
@@ -641,15 +836,30 @@ class PackBuilderGUI(Frame):
         # For testing
         # print(self.current_mode)
 
+    def update_listbox(self):
+        """Update the labels in a listbox."""
+
+        # Assemble new list of names based on class instances in the tab's list of LST entries
+        if self.current_mode == 'Scenery':
+            new_names = [i.map_name for i in self.lst_entries[self.current_mode]]
+        else:
+            new_names = [i.IDENTIFY for i in self.lst_entries[self.current_mode]]
+
+        # Remove entries from current tab's listbox and add in the new names
+        if self.current_mode == 'Aircraft':
+            self.air_listbox.delete(0, END)
+            self.air_listbox.insert(END, *new_names)
+        elif self.current_mode == 'Ground':
+            self.gnd_listbox.delete(0, END)
+            self.gnd_listbox.insert(END, *new_names)
+        elif self.current_mode == 'Scenery':
+            self.sce_listbox.delete(0, END)
+            self.sce_listbox.insert(END, *new_names)
 
     def assemble_pack(self):
-        """This function will take the filepaths, naming and organization.
-        Inputs
-        None
+        """This function will take the filepaths, naming and organization."""
 
-        Outputs
-        None
-        """
+        self.functionality_not_available_popup("assemble_pack")
 
         # Ask the user where to export the pack to.
 
@@ -663,23 +873,186 @@ class PackBuilderGUI(Frame):
         # Force Scenery names to replace spaces with underscores
 
 
-class AirLSTEntry:
+
+class AirGndLSTEntry:
     def __init__(self):
-        self.dat = None
-        self.visual = None
-        self.cockpit = None
-        self.collision = None
-        self.coarse = None
-        self.IDENTIFY = None
+        # All Files use the same nomenclature as the labels for simpler automatic transfer of information between
+        # the class instance and the GUI.
+        self.DAT = ""
+        self.Visual_Model = ""
+        self.Collision = ""
+        self.Cockpit = ""
+        self.Coarse = ""
+        self.IDENTIFY = ""
         self.dat_rename = False
+        self.dat_new_name = ""
 
     def assign_values(self, dict_of_values):
-        pass
+        for key, value in dict_of_values.items():
+            if key in self.__dict__.keys():
+                setattr(self, key.replace(" ", "_"), value)
+
+    def make_lst_entry(self, pack_name, user_name):
+        """Make a single string for a line in the LST File."""
+        parts = [make_pack_filepath(self.DAT, pack_name, user_name, self.dat_new_name),
+                 make_pack_filepath(self.Visual_Model, pack_name, user_name),
+                 make_pack_filepath(self.Collision, pack_name, user_name),
+                 make_pack_filepath(self.Cockpit, pack_name, user_name),
+                 make_pack_filepath(self.Coarse, pack_name, user_name)]
+        return " ".join(parts)
+
+    def write_save_config_data(self):
+        """Generate the data needed to completely write the data stored in this class instance to a save file."""
+        return self.__dict__
+
+    def copy_dat_file(self, output_directory):
+        """For some dat files we will want to use the same source DAT File and then copy them to the final location,
+        rename them and set a new IDENTIFY line"""
 
 
 
 
-        
+class SceLSTEntry:
+    def __init__(self):
+        # All Files use the same nomenclature as the labels for simpler automatic transfer of information between
+        # the class instance and the GUI.
+        self.Map = ""
+        self.Start_Position = ""
+        self.Mission = ""
+        self.air_race = False
+        self.map_name = ""
+
+    def make_lst_entry(self, pack_name, user_name):
+        parts = [self.map_name.replace(" ", "_"),
+                 make_pack_filepath(self.Map, pack_name, user_name),
+                 make_pack_filepath(self.Start_Position, pack_name, user_name),
+                 make_pack_filepath(self.Mission, pack_name, user_name)]
+
+        if self.air_race is True:
+            parts.append("AIRRACE")
+
+        return " ".join(parts)
+
+    def assign_values(self, dict_of_values):
+        for key, value in dict_of_values.items():
+            if key in self.__dict__.keys():
+                setattr(self, key.replace(" ","_"), value)
+
+    def write_save_config_data(self):
+        return self.__dict__
+
+
+def extract_identify_from_dat(datfilepath):
+    """Find the IDENTIFY line in a DAT file and return the name
+
+    inputs
+    datfilepath (os.pathlike): path to where the dat file is
+
+    outputs
+    name (str): IDENTIFY of the aircraft or ground object
+    """
+
+    # Validate the dat file exists and is a dat file
+    if datfilepath.endswith(".dat") is False or os.path.isfile(datfilepath) is False:
+        return ""
+
+    # Import DAT File
+    with open(datfilepath, mode='r', errors='ignore') as dat_file:
+        dat = dat_file.readlines()
+
+    # Find aircraft/ground object name
+    identify_idx = 0
+    for line in dat:
+        if line.startswith("IDENTIFY"):
+            break
+        identify_idx += 1
+
+    # Remove unnecessary parts of the raw dat file line.
+    name = dat[identify_idx][8:]  # Trim the dat variable form the beginning.
+    if '#' in name:
+        name = name.split('#')[0]  # Trim elements after in-line comment
+    if '"' in name:
+        name = name.split('"')[1]  # Remove the quotation marks and extract contents within them.
+        # NOTE: Most Ground Object Identify Lines do not have quotation marks
+
+    return name
+
+
+
+def make_pack_filepath(raw_filepath, pack_name, user_name, new_filename=""):
+    if new_filename:
+        return '"users/{}/{}/{}"'.format(user_name,pack_name,new_filename)
+    else:
+        return '"users/{}/{}/{}"'.format(user_name, pack_name, os.path.basename(raw_filepath))
+
+
+
+class Dialog(Frame):
+    """A helper class to support custom pop-up windows that appear above the main GUI class.
+    This is primarily planned for the Settings Menu"""
+    def __init__(self,parent,title=""):
+        self.applet = Toplevel(parent)
+        self.applet.transient(parent)
+        self.applet.title(title)
+        self.applet.resizable(False,False)
+##        self.applet.grab_set()
+        self.applet.geometry("+{}+{}".format(parent.winfo_rootx()+50,
+                                             parent.winfo_rooty()+50))
+        super().__init__(self.applet)
+        self.pack(fill='both',expand=True)
+
+
+class Settings(Dialog):
+    """Provide a convenient way to set the program's settings in a custom GUI."""
+    def __init__(self, parent, title="Settings"):
+        super().__init__(parent, title)
+        self.parent = parent
+        self.applet.title = title
+
+        # Define local GUI variables for the Settings GUI Entries and initialize with their current values in from the
+        # main program GUI.
+        self.Working_Directory = StringVar(value=self.parent.WorkingDirectory.get())
+        self.UserName = StringVar(value=self.parent.UserName.get())
+        self.ListBoxWidth = IntVar(value=self.parent.listbox_width)
+        self.ListBoxHeight = IntVar(value=self.parent.listbox_height)
+        self.AskBeforeDeletingLstEntry = IntVar(value=int(self.parent.ask_before_delete_lst))
+
+        self.preview_row_options = [5,10,15,20,25]
+        self.preview_line_character_width = [20, 35, 30, 35]
+
+    def build_settings_gui(self):
+        """Build the custom GUI for the settings"""
+
+        Main = Frame(self.applet)
+        row_num = 0
+        Label(Main, text="User Name:").grid(row=row_num, column=0, sticky="W")
+        Entry(Main, textvariable=self.UserName, width=30).grid(row=row_num, column=1, sticky="WE", columnspan=2)
+
+        row_num += 1
+        Label(Main, text="Working Directory").grid(row=row_num, column=0, sticky="W")
+        Entry(Main, textvariable=self.Working_Directory, width=30).grid(row=row_num, column=1, sticky="WE")
+        Button(Main, text="Select Folder", command=self.select_working_folder).grid(row=row_num, column=2, sticky="NSEW")
+
+        row_num += 1
+        Label(Main, text="Preview Rows").grid(row=row_num, column=0, sticky="W")
+
+
+
+    def select_working_folder(self):
+        """Select a default working folder"""
+        prompt = "Select the Directory where you have your modding files."
+        path = filedialog.askdirectory(parent=self, title=prompt, mustexist=True, initialdir=self.Working_Directory.get())
+
+        # Validate the path
+        if path:
+            # Set the appropriate variable
+            self.Working_Directory.set(path)
+
+
+
+
+
+# Run the program. This must be at the end of the file.
 if __name__ == "__main__":
     main()
     

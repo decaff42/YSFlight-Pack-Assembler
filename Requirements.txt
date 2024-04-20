@@ -18,8 +18,6 @@
 
 
 
-
-
 2. Must make Aircraft, Ground Object and Scenery LST files
 
 
