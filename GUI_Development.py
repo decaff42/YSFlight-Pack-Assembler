@@ -29,6 +29,7 @@ from enum import Enum
 from pathlib import PosixPath
 import csv
 import string
+import pathlib
 
 
 
@@ -50,6 +51,7 @@ class PackBuilderGUI(Frame):
         self.version = version
         self.author = author
         self.copyright_notice = copyright_notice
+        self.settings_directory = os.getcwd()
 
         # Define filepaths that the user selects for the lst contents - These are Absolute Paths. The
         # user will have the filenames displayed so that they can actually determine if they have the
@@ -137,15 +139,89 @@ class PackBuilderGUI(Frame):
         self.lst_filetypes = lst_filetypes
 
         # Define how wide the list boxes should be (# of characters)
-        self.listbox_width = 30
         self.listbox_height = 15
+        self.settings = dict()
+        self.setting_types = dict()
 
         # Define variables that should move to a settings file.
         self.ask_before_delete_lst = True
         
         # Setup the GUI
+        self.build_default_settings()
         self.gui_setup()
         # self.load_settings()
+
+    def open_settings_dialog(self):
+        """Let the user open a settings GUI to make selections"""
+        # Store the current settings so that we have something to compare to
+        old_settings = self.settings
+
+        # Let the user make changes to the settings
+        self.wait_window(Settings(self))
+        self.focus_set()
+
+        # Write the new settings to file if there are any changes after the Settings Window closes.
+        update = False
+        for key, value in self.settings.items():
+            if key not in old_settings:
+                update = True
+                break
+            elif old_settings[key] != value:
+                update = True
+                break
+
+        if update is True:
+            self.write_settings()
+            # Reload the GUI to update any changes.
+            self.gui_setup()
+
+
+    def build_default_settings(self):
+        """Have a function to define all of the default settings"""
+        self.setting_types = {'preview_num_rows':  int,
+                              'preview_char_width': int,
+                              'working_directory': os.PathLike,
+                              'user_name': str,
+                              'ask_before_entry_removal': bool}
+
+        self.settings = {'preview_num_rows':15,
+                         'preview_char_width':30,
+                         'working_directory':os.path.normpath(os.sep),
+                         'user_name':'UserName',
+                         'ask_before_entry_removal':True}
+
+    def write_settings(self):
+        """assemble the lines for a settings file and write to the settings location."""
+        output = [self.title+"\n", "v"+self.version+"\n"]
+        for key, value in self.settings:
+            output.append("{}:={}\n".format(key, value))
+
+        with open(os.path.join(self.settings_directory, "settings.cfg"), mode='w') as settings_file:
+            settings_file.writelines(output)
+
+    def read_settings(self):
+        """Read an existing settings file"""
+        if os.path.isfile(os.path.join(self.settings_directory, "settings.cfg")) is False:
+            return
+
+        with open(os.path.join(self.settings_directory, "settings.cfg"), mode='r') as settings_file:
+            lines = settings_file.readlines
+
+        # Skip the header and the version number
+        self.settings = dict()
+        lines = lines[2:]
+        for line in lines:
+            key, value = line[:-1].split(":=")
+            if key in self.setting_types.keys():
+                output_type = self.setting_types[key]
+                if output_type is bool:
+                    self.settings[key] = bool(value)
+                elif output_type is int:
+                    self.settings[key] = int(value)
+                elif output_type is os.PathLike:
+                    self.settings[key] = os.path.normpath(value)
+                elif output_type is str:
+                    self.settings[key] = value
 
     def gui_setup(self):
         """Create the User Interface"""
@@ -187,7 +263,7 @@ class PackBuilderGUI(Frame):
 
         # Set up the Settings Menu
         SettingsMenu = Menu(MenuBar, tearoff=0)
-        SettingsMenu.add_command(label="Edit Settings", command=self.edit_settings)
+        SettingsMenu.add_command(label="Edit Settings", command=self.open_settings_dialog)
         SettingsMenu.add_command(label="Set Default Working Directory", command=self.ask_default_working_directory)
         SettingsMenu.add_command(label="Set Default Username", command=self.ask_username)
         MenuBar.add_cascade(label="Settings", menu=SettingsMenu)
@@ -261,7 +337,7 @@ class PackBuilderGUI(Frame):
         Button(AircraftMoveLSTButtonFrame, image=pixel, width=1, text=u'\u2193', command=self.move_selected_lst_entry_down).grid(row=1, column=0)
         AircraftMoveLSTButtonFrame.grid(row=0, column=0)
 
-        self.air_listbox = Listbox(AircraftListFrame, width=self.listbox_width, height=self.listbox_height, font=("Helvetica",12), selectmode='SINGLE')
+        self.air_listbox = Listbox(AircraftListFrame, width=self.settings['preview_char_width'], height=self.settings['preview_num_rows'], font=("Helvetica",12), selectmode='SINGLE')
         self.air_listbox.grid(row=0, column=1, sticky="NSWE")
         air_yscrollbar = ttk.Scrollbar(AircraftListFrame, orient='vertical')
         air_yscrollbar.configure(command=self.air_listbox.yview)
@@ -321,7 +397,7 @@ class PackBuilderGUI(Frame):
         # Ground Object Preview Section
         GroundPreviewFrame = Frame(GroundFrame)
         GroundPreviewButtonFrame = Frame(GroundPreviewFrame)
-        self.gnd_listbox = Listbox(GroundPreviewFrame, width=self.listbox_width, height=self.listbox_height, font=("Helvetica",12), selectmode='SINGLE')
+        self.gnd_listbox = Listbox(GroundPreviewFrame, width=self.settings['preview_char_width'], height=self.settings['preview_num_rows'], font=("Helvetica",12), selectmode='SINGLE')
 
         # Ground Object Edit Section
         GroundEditFrame = Frame(GroundFrame)
@@ -338,7 +414,7 @@ class PackBuilderGUI(Frame):
         # Scenery Preview Selection
         SceneryPreviewFrame = Frame(SceneryFrame)
         SceneryPreviewButtonFrame = Frame(SceneryPreviewFrame)
-        self.sce_listbox = Listbox(SceneryPreviewFrame, width=self.listbox_width, height=self.listbox_height, font=("Helvetica", 12), selectmode='SINGLE')
+        self.sce_listbox = Listbox(SceneryPreviewFrame, width=self.settings['preview_char_width'], height=self.settings['preview_num_rows'], font=("Helvetica", 12), selectmode='SINGLE')
 
         # Scenery Edit Selection
         SceneryEditFrame = Frame(SceneryFrame)
@@ -995,7 +1071,7 @@ class Dialog(Frame):
         self.applet.transient(parent)
         self.applet.title(title)
         self.applet.resizable(False,False)
-##        self.applet.grab_set()
+        self.applet.grab_set()
         self.applet.geometry("+{}+{}".format(parent.winfo_rootx()+50,
                                              parent.winfo_rooty()+50))
         super().__init__(self.applet)
@@ -1011,14 +1087,19 @@ class Settings(Dialog):
 
         # Define local GUI variables for the Settings GUI Entries and initialize with their current values in from the
         # main program GUI.
-        self.Working_Directory = StringVar(value=self.parent.WorkingDirectory.get())
-        self.UserName = StringVar(value=self.parent.UserName.get())
-        self.ListBoxWidth = IntVar(value=self.parent.listbox_width)
-        self.ListBoxHeight = IntVar(value=self.parent.listbox_height)
+        self.Working_Directory = StringVar(value=self.parent.settings['working_directory'])
+        self.UserName = StringVar(value=self.parent.settings['user_name'])
+        self.ListBoxWidth = StringVar(value=str(self.parent.settings['preview_char_width']))
+        self.ListBoxHeight = StringVar(value=str(self.parent.settings['preview_num_rows']))
         self.AskBeforeDeletingLstEntry = IntVar(value=int(self.parent.ask_before_delete_lst))
 
-        self.preview_row_options = [5,10,15,20,25]
-        self.preview_line_character_width = [20, 35, 30, 35]
+        # OptionMenu lists need to be strings.
+        self.preview_num_row_options = [str(i) for i in [5, 10 ,15 ,20, 25]]
+        self.preview_line_character_width_options = [str(i) for i in [20, 35, 30, 35, 40]]
+        self.selected_num_rows = StringVar(value=str(self.parent.settings['preview_num_rows']))
+        self.selected_char_width = StringVar(value=str(self.parent.settings['preview_char_width']))
+
+        self.build_settings_gui()
 
     def build_settings_gui(self):
         """Build the custom GUI for the settings"""
@@ -1034,8 +1115,36 @@ class Settings(Dialog):
         Button(Main, text="Select Folder", command=self.select_working_folder).grid(row=row_num, column=2, sticky="NSEW")
 
         row_num += 1
-        Label(Main, text="Preview Rows").grid(row=row_num, column=0, sticky="W")
+        Label(Main, text="Preview Rows:").grid(row=row_num, column=0, sticky="W")
+        OptionMenu(Main, self.selected_num_rows, self.selected_num_rows.get(), *self.preview_num_row_options).grid(row=row_num, column=1, sticky="EW")
 
+        row_num += 1
+        Label(Main, text="Preview Width:").grid(row=row_num, column=0, sticky="W")
+        OptionMenu(Main, self.selected_char_width, self.selected_char_width.get(), *self.preview_line_character_width_options).grid(row=row_num, column=1, sticky="EW")
+
+        row_num += 1
+        Separator(Main).grid(row=row_num, column=0, columnspan=3, sticky="EW", pady=5)
+
+        row_num += 1
+        Button(Main, text="Cancel", command=self.close_settings).grid(row=row_num, column=0, columnspan=1, sticky="NSEW")
+        Button(Main, text="Save", command=self.save_settings).grid(row=row_num, column=1, columnspan=2, sticky="NSEW")
+
+        Main.pack()
+
+    def save_settings(self):
+        """Update the parent's settings dict and then close, use the parent class to write the settings to file."""
+        # Update the parent's settings based on the user's selections.
+        self.parent.settings['preview_char_width'] = int(self.selected_char_width.get())
+        self.parent.settings['preview_num_rows'] = int(self.selected_num_rows.get())
+        self.parent.settings['working_directory'] = self.Working_Directory.get()
+        self.parent.settings['user_name'] = self.UserName.get()
+
+        # Close the window
+        self.applet.destroy()
+
+    def close_settings(self):
+        """Close the settings without saving."""
+        self.applet.destroy()
 
 
     def select_working_folder(self):
