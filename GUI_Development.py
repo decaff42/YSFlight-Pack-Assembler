@@ -30,6 +30,8 @@ from pathlib import PosixPath
 import csv
 import string
 import pathlib
+import shutil
+
 
 
 
@@ -138,13 +140,12 @@ class PackBuilderGUI(Frame):
         lst_filetypes['Scenery'] = [['fld'], ['stp'], ['yfs'], [], []]
         self.lst_filetypes = lst_filetypes
 
-        # Define how wide the list boxes should be (# of characters)
-        self.listbox_height = 15
+        # Define settings class variables
         self.settings = dict()
         self.setting_types = dict()
 
         # Define variables that should move to a settings file.
-        self.ask_before_delete_lst = True
+        self.ask_before_delete_lst = 1
         
         # Setup the GUI
         self.build_default_settings()
@@ -164,6 +165,7 @@ class PackBuilderGUI(Frame):
         update = False
         for key, value in self.settings.items():
             if key not in old_settings:
+                # This is not expected but we want to cover bases.
                 update = True
                 break
             elif old_settings[key] != value:
@@ -175,6 +177,9 @@ class PackBuilderGUI(Frame):
             # Reload the GUI to update any changes.
             self.gui_setup()
 
+            # Assign class variables based on updated settings.
+            self.WorkingDirectory.set(self.settings['working_directory'])
+            self.UserName.set(self.settings['user_name'])
 
     def build_default_settings(self):
         """Have a function to define all of the default settings"""
@@ -182,13 +187,13 @@ class PackBuilderGUI(Frame):
                               'preview_char_width': int,
                               'working_directory': os.PathLike,
                               'user_name': str,
-                              'ask_before_entry_removal': bool}
+                              'ask_before_entry_removal': int}
 
         self.settings = {'preview_num_rows':15,
                          'preview_char_width':30,
                          'working_directory':os.path.normpath(os.sep),
                          'user_name':'UserName',
-                         'ask_before_entry_removal':True}
+                         'ask_before_entry_removal':  1}
 
     def write_settings(self):
         """assemble the lines for a settings file and write to the settings location."""
@@ -499,13 +504,6 @@ class PackBuilderGUI(Frame):
         """
         self.functionality_not_available_popup("ask_default_working_directory")
 
-    def edit_settings(self):
-        """Open a GUI dialog of the settings that a user would like to set
-
-        This function will be used in the future and for now is undeveloped
-        """
-        self.functionality_not_available_popup("edit_settings")
-
     def move_selected_lst_entry_up(self):
         """Will take a selected LST entry and move it up the listbox
 
@@ -544,7 +542,7 @@ class PackBuilderGUI(Frame):
 
         # Ensure that there is an option selected in the current Tab's Listbox
 
-        # If the user wants a warning before deleting an LST entry, ask them self.ask_before_delete_lst
+        # If the user wants a warning before deleting an LST entry, ask them self.settings['ask_before_entry_removal']
 
         # Delete LST entry from appropriate list of LST Entries
 
@@ -951,6 +949,8 @@ class PackBuilderGUI(Frame):
 
 
 class AirGndLSTEntry:
+    bad_identify_characters = [" ", '"']
+    replacement_characters = ["_", ""]
     def __init__(self):
         # All Files use the same nomenclature as the labels for simpler automatic transfer of information between
         # the class instance and the GUI.
@@ -981,14 +981,46 @@ class AirGndLSTEntry:
         """Generate the data needed to completely write the data stored in this class instance to a save file."""
         return self.__dict__
 
-    def copy_dat_file(self, output_directory):
-        """For some dat files we will want to use the same source DAT File and then copy them to the final location,
-        rename them and set a new IDENTIFY line"""
+    def assign_new_identify(self, new_identify):
+        for bad_char, replacement in zip(self.bad_identify_characters, self.replacement_characters):
+            new_identify.replace(bad_char, replacement)
+        self.IDENTIFY = new_identify
 
+    def generate_pack(self, output_directory):
+        """Copy the files from their source to the new directory. If the dat file needs to be renamed, do so and
+        ensure that the IDENTIFY line is set to whatever is in the class instance."""
 
+        # Generate output paths for all files.
+        original_paths = [self.DAT, self.Visual_Model, self.Collision, self.Cockpit, self.Coarse]
+        output_paths = [os.path.join(output_directory, os.path.basename(i)) for i in original_paths]
+        if self.dat_rename:
+            output_paths[0] = os.path.join(output_directory, self.dat_new_name)
+
+        # Move the files to the new locations
+        for source, destination in zip(original_paths, output_paths):
+            if os.path.isfile(source):
+                shutil.copyfile(source, destination)
+            else:
+                raise FileNotFoundError("Could not find file {} for {}.".format(source, self.IDENTIFY))
+
+        # Overwrite the IDENTIFY line to force it to match what has been defined in the tool.
+        # Need to see if there is a better alternate method
+        new_identify_line = 'IDENTIFY "{}"\n'.format(self.IDENTIFY)
+        old_dat = list()
+        with open(output_paths[0], mode='r') as old_dat_file:
+            old_dat = old_dat_file.readlines()
+        for idx, line in enumerate(old_dat):
+            if line.startswith("IDENTIFY "):
+                old_dat[idx] = new_identify_line
+                break
+        with open(output_paths[0], mode='w') as new_dat_file:
+            for line in old_dat:
+                new_dat_file.write(line)
 
 
 class SceLSTEntry:
+    bad_map_name_characters = [" ", '"']
+    replacement_characters = ["_", ""]
     def __init__(self):
         # All Files use the same nomenclature as the labels for simpler automatic transfer of information between
         # the class instance and the GUI.
@@ -1091,13 +1123,14 @@ class Settings(Dialog):
         self.UserName = StringVar(value=self.parent.settings['user_name'])
         self.ListBoxWidth = StringVar(value=str(self.parent.settings['preview_char_width']))
         self.ListBoxHeight = StringVar(value=str(self.parent.settings['preview_num_rows']))
-        self.AskBeforeDeletingLstEntry = IntVar(value=int(self.parent.ask_before_delete_lst))
+        self.AskBeforeDeletingLstEntry = IntVar(value=int(self.parent.settings['ask_before_entry_removal']))
 
         # OptionMenu lists need to be strings.
         self.preview_num_row_options = [str(i) for i in [5, 10 ,15 ,20, 25]]
         self.preview_line_character_width_options = [str(i) for i in [20, 35, 30, 35, 40]]
         self.selected_num_rows = StringVar(value=str(self.parent.settings['preview_num_rows']))
         self.selected_char_width = StringVar(value=str(self.parent.settings['preview_char_width']))
+        self.ask_before_delete_entry = IntVar(value=self.parent.settings['ask_before_entry_removal'])
 
         self.build_settings_gui()
 
@@ -1123,7 +1156,10 @@ class Settings(Dialog):
         OptionMenu(Main, self.selected_char_width, self.selected_char_width.get(), *self.preview_line_character_width_options).grid(row=row_num, column=1, sticky="EW")
 
         row_num += 1
-        Separator(Main).grid(row=row_num, column=0, columnspan=3, sticky="EW", pady=5)
+        Checkbutton(Main, text="Ask before deleting LST entries?", variable=self.ask_before_delete_entry).grid(row=row_num, column=0, columnspan=3, sticky="EW")
+
+        row_num += 1
+        Separator(Main).grid(row=row_num, column=1, columnspan=2, sticky="EW", pady=5)
 
         row_num += 1
         Button(Main, text="Cancel", command=self.close_settings).grid(row=row_num, column=0, columnspan=1, sticky="NSEW")
@@ -1138,6 +1174,7 @@ class Settings(Dialog):
         self.parent.settings['preview_num_rows'] = int(self.selected_num_rows.get())
         self.parent.settings['working_directory'] = self.Working_Directory.get()
         self.parent.settings['user_name'] = self.UserName.get()
+        self.parent.settings['ask_before_delete_entry'] = int(self.ask_before_delete_entry.get())
 
         # Close the window
         self.applet.destroy()
@@ -1145,7 +1182,6 @@ class Settings(Dialog):
     def close_settings(self):
         """Close the settings without saving."""
         self.applet.destroy()
-
 
     def select_working_folder(self):
         """Select a default working folder"""
