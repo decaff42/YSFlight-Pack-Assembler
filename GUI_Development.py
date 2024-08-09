@@ -19,14 +19,13 @@ __license__ = """Only non-commercial use is allowed without prior written permis
 
 
 # Import standard Python Modules
-from tkinter import filedialog, messagebox
+from tkinter import filedialog, messagebox, simpledialog
 from tkinter import ttk
 from tkinter import *
 from tkinter.ttk import *
 import os
 import string
 import shutil
-
 
 
 def main():
@@ -60,13 +59,17 @@ class PackBuilderGUI(Frame):
 
         # Store where a user last selected a file from as this is likely close to where their next file is and will
         # therefore help them save a lot of time in folder navigation by simply storing that information.
-        self.WorkingDirectory = StringVar(value = os.path.abspath(os.sep))
+        try:
+            self.WorkingDirectory = StringVar(value = os.getcwd())
+        except:
+            self.WorkingDirectory = StringVar(value=os.path.abspath(os.sep))
         
         # Define names that the user will input at various points
         # The UserName and PackName be used to create folder/filenames in the pack file structure:
         # [PackName].zip\user\[UserName]\[PackName]\[air/gnd/sce]\[files]
         self.SceneryName = StringVar()  # Need a custom name for each map added to the LST
         self.UserName = StringVar()
+        self.default_username = "UserName"
         self.PackName = StringVar()
         self.SceneryAirRace = IntVar(value=0)  # Used to indicate if a map should have the AIR RACE flag added to it in the LST File.
 
@@ -88,31 +91,28 @@ class PackBuilderGUI(Frame):
         self.lst_file_prefixes = ['air', 'gnd', 'sce']  # Validate which lst file we are importing or exporting.
         self.current_mode = 'Aircraft'  # A variable to hold the shortened name of the tab currently displayed
         
-        # Define the filetype options for the file selection gui, based on the allowable filetype.
-        filetypes = dict()
-        filetypes['srf'] = [("SRF File", "*.srf")]
-        filetypes['dat'] = [("DAT File", "*.dat")]
-        filetypes['dnm'] = [("DynaModel File", "*.dnm")]
-        filetypes['stp'] = [("Start Position File", "*.stp")]
-        filetypes['fld'] = [("Scenery File", "*.fld")]
-        filetypes['yfs'] = [("Mission File", "*.yfs")]
-        filetypes['dnm srf'] = [("DynaModel or Surf File", "*.dnm *.srf")]
-        self.filetypes = filetypes
+        # Define the filetype options for the file selection gui, based on the allowable filetypes.
+        self.filetypes = dict()
+        self.filetypes['srf'] = [("SRF File", "*.srf")]
+        self.filetypes['dat'] = [("DAT File", "*.dat")]
+        self.filetypes['dnm'] = [("DynaModel File", "*.dnm")]
+        self.filetypes['stp'] = [("Start Position File", "*.stp")]
+        self.filetypes['fld'] = [("Scenery File", "*.fld")]
+        self.filetypes['yfs'] = [("Mission File", "*.yfs")]
+        self.filetypes['dnm srf'] = [("DynaModel or Surf File", "*.dnm *.srf")]
 
         # Define which files are required for a valid LST entry. Use None to fill in gaps so that all
         # definitions have the same length to avoid potential issues in the future.
-        required_files = dict()
-        required_files['Aircraft'] = [True, True, True, False, False]
-        required_files['Scenery'] = [True, True, False, None, None]
-        required_files['Ground'] = [True, True, True, False, False]
-        self.required_files = required_files
+        self.required_files = dict()
+        self.required_files['Aircraft'] = [True, True, True, False, False]
+        self.required_files['Scenery'] = [True, True, False, None, None]
+        self.required_files['Ground'] = [True, True, True, False, False]
         
         # Define Labels that should appear in the GUI for the various 
-        labels = dict()
-        labels['Aircraft'] = ['DAT', 'Visual Model', 'Collision', 'Cockpit', 'Coarse']
-        labels['Ground'] = ['DAT', 'Visual Model', 'Collision', 'Cockpit', 'Coarse']
-        labels['Scenery'] = ['Map', 'Start Position', 'Mission', '', '']
-        self.labels = labels
+        self.labels = dict()
+        self.labels['Aircraft'] = ['DAT', 'Visual Model', 'Collision', 'Cockpit', 'Coarse']
+        self.labels['Ground'] = ['DAT', 'Visual Model', 'Collision', 'Cockpit', 'Coarse']
+        self.labels['Scenery'] = ['Map', 'Start Position', 'Mission', '', '']
 
         # Define prompts for the file selection dialogs. Matches order of the labels and GUI.
         prompts = dict()
@@ -128,11 +128,10 @@ class PackBuilderGUI(Frame):
         # Define the allowable file types for the different positions.
         # Make sure every element is a list so that they can all be parsed the same
         # way in the "select file" function.
-        lst_filetypes = dict()
-        lst_filetypes['Aircraft'] = [['dat'], ['dnm srf', 'dnm', 'srf'], ['dnm srf', 'dnm', 'srf'], ['dnm srf', 'dnm', 'srf'], ['dnm srf', 'dnm', 'srf']]
-        lst_filetypes['Ground'] = [['dat'], ['dnm srf', 'dnm', 'srf'], ['dnm srf', 'dnm', 'srf'], ['dnm srf', 'dnm', 'srf'], ['dnm srf', 'dnm', 'srf']]
-        lst_filetypes['Scenery'] = [['fld'], ['stp'], ['yfs'], [], []]
-        self.lst_filetypes = lst_filetypes
+        self.lst_filetypes = dict()
+        self.lst_filetypes['Aircraft'] = [['dat'], ['dnm srf', 'dnm', 'srf'], ['dnm srf', 'dnm', 'srf'], ['dnm srf', 'dnm', 'srf'], ['dnm srf', 'dnm', 'srf']]
+        self.lst_filetypes['Ground'] = [['dat'], ['dnm srf', 'dnm', 'srf'], ['dnm srf', 'dnm', 'srf'], ['dnm srf', 'dnm', 'srf'], ['dnm srf', 'dnm', 'srf']]
+        self.lst_filetypes['Scenery'] = [['fld'], ['stp'], ['yfs'], [], []]
 
         # Define settings class variables
         self.settings = dict()
@@ -175,12 +174,18 @@ class PackBuilderGUI(Frame):
             self.current_lst_edit_name['Scenery'] = None
 
     def clear_entry_fields(self, aircraft=True, ground=True, scenery=True, ask=False):
-        """Provide a way to clear all fields in some or all of the tabs"""
+        """Provide a way to clear all fields in some or all of the tabs
 
+        Inputs:
+        aircraft (bool): Indication if aircraft entry fields should be cleared.
+        ground (bool): Indication if ground object entry fields should be cleared.
+        scenery (bool): Indication if scenery entry fields should be cleared.
+        ask (bool): Indication if the tool should ask the user before clearing entry field(s) if data is detected.
+        """
+        # Ask the user if they really want to delete all the paths.
         if ask is True:
             paths = self.current_paths[self.current_mode]
             if any([True for path in paths if len(path.get()) > 0]):
-                # Ask the user if they really want to delete all the paths.
                 prompt = "Are you sure you want to delete all of the {} filepaths you have entered?".format(self.current_mode)
                 title = "Delete all {} Filepaths?".format(self.current_mode)
 
@@ -189,18 +194,21 @@ class PackBuilderGUI(Frame):
                     return
 
         if aircraft is True:
+            # Delete aircraft entry fields and remove the stored filepath.
             self.AircraftName.set(value=self.default_aircraft_name)
             for idx in range(len(self.current_paths['Aircraft'])):
                 self.current_paths['Aircraft'][idx].set("")
                 self.current_filenames['Aircraft'][idx].set("")
             self.current_lst_edit_name['Aircraft'] = None
         if ground is True:
+            # Delete Ground entry fields and remove the stored filepath.
             self.GroundObjectName.set(self.default_ground_object_name)
             for idx in range(len(self.current_paths['Ground'])):
                 self.current_paths['Ground'][idx].set("")
                 self.current_filenames['Ground'][idx].set("")
             self.current_lst_edit_name['Ground'] = None
         if scenery is True:
+            # Delete Scenery entry fields and remove the stored filepath.
             self.SceneryName.set(value="")
             self.SceneryAirRace.set(0)
             for idx in range(len(self.current_paths['Scenery'])):
@@ -231,7 +239,6 @@ class PackBuilderGUI(Frame):
             for widget in self.MainFrame.winfo_children():
                 widget.destroy()
             self.gui_setup()
-
             messagebox.showinfo(parent=self.parent,
                                 title="Settings Updated",
                                 message="You may need to restart to the program for all settings to be displayed.")
@@ -251,8 +258,8 @@ class PackBuilderGUI(Frame):
         self.settings = {'preview_num_rows':15,
                          'preview_char_width':30,
                          'working_directory':os.path.normpath(os.sep),
-                         'user_name':'UserName',
-                         'ask_before_entry_removal':  1   # True / Yes
+                         'user_name':self.default_username,
+                         'ask_before_entry_removal':  1   # True / Yes = 1, False / No = 0
                          }
 
     def write_settings(self):
@@ -605,12 +612,40 @@ class PackBuilderGUI(Frame):
             for idx in new_selected_idx:  # Cannot select elements in listbox at once, need to do singly.
                 self.sce_listbox.selection_set(idx)
 
+    def determine_if_filepaths_are_entered(self, all_entries=False):
+        """Given the current mode, determine if there are filepaths in the GUI that may or may not have been saved.
+
+        Inputs:
+        all_entries (bool): Indication if the code should look at all tab entry fields (True) or only the current tab (False)"""
+        if all_entries is True:
+            for mode in self.current_filenames.keys():
+                for filename in self.current_filenames[mode]:
+                    if len(filename.get()) > 0:
+                        return True
+        else:
+            for filename in self.current_filenames[self.current_mode]:
+                if len(filename.get()) > 0:
+                    return True
+        return False
+
     def copy_edit_lst_entry(self, mode, event=None):
         """Will take a selected LST entry and load the contents into the GUI. If the user is editing an LST entry, it
         will set the edit flag name.
 
-        This function will be used in the future and for now is undeveloped
+        Inputs:
+        mode (str): An indication if we are editing or copying an existing LST Entry.
+        event (None): Placeholder so we can use this function from a button.
         """
+
+        if self.determine_if_filepaths_are_entered(all_entries=False) is True:
+            # Ask the user if they want to overwrite the entries?
+            answer = messagebox.askyesno(parent=self.parent,
+                                         title='Detected {} Files Loaded'.format(self.current_mode.upper()),
+                                         message='Do you want to deleted all of the {} filepaths you have entered?'.format(self.current_mode),
+                                         default='no')
+            if answer is False:
+                return
+
         # Get the selected element
         selected_idx = list()
         current_entries = list()
@@ -633,7 +668,7 @@ class PackBuilderGUI(Frame):
         elif len(selected_idx) == 0:
             return
 
-        # Fill in the
+        # Fill in the entry fields for the appropriate tab.
         name = current_entries[selected_idx[0]]
         instance = self.lst_entries[self.current_mode][name]
         if self.current_mode == 'Scenery':
@@ -653,38 +688,6 @@ class PackBuilderGUI(Frame):
 
 
         # self.functionality_not_available_popup("copy_lst_entry")
-
-    def edit_lst_entry(self):
-        """Will take a selected LST entry and load the contents into the GUI for editing purposes
-
-        This function will be used in the future and for now is undeveloped
-        """
-        # Get the selected element
-        selected_idx = list()
-        current_entries = list()
-        if self.current_mode == 'Aircraft':
-            current_entries = self.air_listbox.get(0, END)
-            selected_idx = list(self.air_listbox.curselection())
-        elif self.current_mode == 'Ground':
-            current_entries = self.gnd_listbox.get(0, END)
-            selected_idx = list(self.gnd_listbox.curselection())
-        elif self.current_mode == 'Scenery':
-            current_entries = self.gnd_listbox.get(0, END)
-            selected_idx = list(self.sce_listbox.curselection())
-
-        # We should alert the user and stop if more than one entry was selected
-        if len(selected_idx) > 1:
-            messagebox.showwarning(parent=self.parent,
-                                   title="Multiple Elements Selected",
-                                   message="Can only select one entry to edit.")
-            return
-        elif len(selected_idx) == 0:
-            return
-
-
-
-
-        self.functionality_not_available_popup("edit_lst_entry")
 
     def delete_lst_entry(self):
         """Will take a selected LST entry and delete it from the backend and also from the GUI listboxes."""
@@ -716,7 +719,7 @@ class PackBuilderGUI(Frame):
             for name in current_selected_names:
                 msg += "\n{}".format(name)
 
-            answer = messagebox.askyesno(parent=self.parent, title=title, message=msg)
+            answer = messagebox.askyesno(parent=self.parent, title=title, message=msg,default='no')
 
             if not answer:
                 return
@@ -808,6 +811,22 @@ class PackBuilderGUI(Frame):
         """
 
         # TODO: Test if the user has unsaved works.
+
+        # Check to see if the user has any LST entries saved
+        ask_to_proceed = False
+        if len(self.lst_entries['Aircraft']) + len(self.lst_entries['Scenery']) + len(self.lst_entries['Ground']) > 0:
+            ask_to_proceed = True
+
+        if self.determine_if_filepaths_are_entered(all_entries=True):
+            ask_to_proceed = True
+
+        if ask_to_proceed is True:
+            answer = messagebox.askyesno(parent=self.parent,
+                                         title='Detected Data Loaded',
+                                         message='You have LST Entries stored or Files selected. Do you want to erase everything and start a new Project?',
+                                         default='no')
+            if not answer:
+                return
 
         self.functionality_not_available_popup("new_pack_configuration")
 
@@ -906,6 +925,19 @@ class PackBuilderGUI(Frame):
                                     message="No pack configuration selected.")
                 return
 
+        # Detect if there are any LST entries in loaded. If there are we should prompt the user if they want to delete
+        # these entries
+        if len(self.lst_entries['Aircraft']) + len(self.lst_entries['Scenery']) + len(self.lst_entries['Ground']) > 0:
+            answer = messagebox.askyesno(parent=self.parent,
+                                         title='Remove Loaded LST Entries?',
+                                         message='Any currently loaded LST Entries will be overwritten by opening this project. Do you want to open the Project?',
+                                         default='no')
+            if not answer:
+                messagebox.showinfo(parent=self.parent,
+                                    title='Did not Open Project',
+                                    message='Did not open project: {}'.format(os.path.basename(input_filepath)))
+                return
+
         # Import the raw data
         with open(input_filepath, mode='r') as config_file:
             input_data = config_file.readlines()
@@ -996,10 +1028,19 @@ class PackBuilderGUI(Frame):
             messagebox.showerror(parent=self, title=title, message=msg)
             return
 
-        # Check to see if the IDENTIFY or SceneryName that we are adding is a duplicate
-        if ((self.current_mode == 'Scenery' and self.SceneryName.get() in list(self.lst_entries[self.current_mode].keys())) or
-            (self.current_mode == 'Aircraft' and self.AircraftName.get() in list(self.lst_entries[self.current_mode].keys())) or
-            (self.current_mode == 'Ground' and self.GroundObjectName.get() in list(self.lst_entries[self.current_mode].keys()))):
+
+        print(self.lst_entries[self.current_mode].keys())
+        if self.current_lst_edit_name[self.current_mode]:
+            if self.current_mode == "Scenery":
+                print(self.current_lst_edit_name[self.current_mode])
+            else:
+                print(self.current_lst_edit_name[self.current_mode])
+        # Check to see if the IDENTIFY or SceneryName that we are adding is a duplicate, but only if we are not currently
+        # Editing the duplicate.
+        if ((self.current_mode == 'Scenery' and self.SceneryName.get() in list(self.lst_entries[self.current_mode].keys()) and self.SceneryName.get() != self.current_lst_edit_name["Scenery"]) or
+            (self.current_mode == 'Aircraft' and self.AircraftName.get() in list(self.lst_entries[self.current_mode].keys()) and self.AircraftName.get() != self.current_lst_edit_name["Aircraft"]) or
+            (self.current_mode == 'Ground' and self.GroundObjectName.get() in list(self.lst_entries[self.current_mode].keys()) and self.GroundObjectName.get() != self.current_lst_edit_name["Ground"])):
+
             temp = ['Aircraft', 'Ground Object', 'Scenery']
             temp2 = ['IDENTIFY', 'IDENTIFY', 'Scenery Name']
             title = "Duplicate {} {} Detected".format(temp[self.lst_types.index(self.current_mode)], temp2[self.lst_types.index(self.current_mode)])
@@ -1040,7 +1081,7 @@ class PackBuilderGUI(Frame):
 
         # Determine if we are replacing an existing lst entry in the storage lists
         if self.current_lst_edit_name[self.current_mode] in self.lst_entries[self.current_mode].keys():
-            # Currently editing an lst entry.
+            # Currently editing an lst entry, so we should overwrite it with the newly generated lst_entry.
             self.lst_entries[self.current_mode][self.current_lst_edit_name[self.current_mode]] = lst_entry
 
             # Update the listbox with a new identify name
@@ -1051,19 +1092,16 @@ class PackBuilderGUI(Frame):
                     idx = listbox_entries.index(self.current_lst_edit_name[self.current_mode])
                     self.air_listbox.delete(idx)
                     self.air_listbox.insert(idx, listbox_name)
-                    self.clear_entry_fields(aircraft=True, ground=False, scenery=False)
                 elif self.current_mode == 'Ground':
                     listbox_entries = self.gnd_listbox.get(0, END)
                     idx = listbox_entries.index(self.current_lst_edit_name[self.current_mode])
                     self.gnd_listbox.delete(idx)
                     self.gnd_listbox.insert(idx, listbox_name)
-                    self.clear_entry_fields(aircraft=False, ground=True, scenery=False)
                 elif self.current_mode == 'Scenery':
                     listbox_entries = self.sce_listbox.get(0, END)
                     idx = listbox_entries.index(self.current_lst_edit_name[self.current_mode])
                     self.sce_listbox.delete(idx)
                     self.sce_listbox.insert(idx, listbox_name)
-                    self.clear_entry_fields(aircraft=False, ground=False, scenery=True)
 
             # Reset the editing notation as the user has saved the information.
             self.current_lst_edit_name[self.current_mode] = None
@@ -1072,15 +1110,20 @@ class PackBuilderGUI(Frame):
             if self.current_mode == 'Aircraft':
                 self.lst_entries[self.current_mode][lst_entry.IDENTIFY] = lst_entry
                 self.air_listbox.insert(END, lst_entry.IDENTIFY)
-                self.clear_entry_fields(aircraft=True, ground=False, scenery=False)
             elif self.current_mode == 'Ground':
                 self.lst_entries[self.current_mode][lst_entry.IDENTIFY] = lst_entry
                 self.gnd_listbox.insert(END, lst_entry.IDENTIFY)
-                self.clear_entry_fields(aircraft=False, ground=True, scenery=False)
             elif self.current_mode == 'Scenery':
                 self.lst_entries[self.current_mode][lst_entry.IDENTIFY] = lst_entry
                 self.sce_listbox.insert(END, lst_entry.map_name)
-                self.clear_entry_fields(aircraft=False, ground=False, scenery=True)
+
+        # Clear the current entries.
+        if self.current_mode == "Aircraft":
+            self.clear_entry_fields(aircraft=True, ground=False, scenery=False)
+        elif self.current_mode == 'Ground':
+            self.clear_entry_fields(aircraft=False, ground=True, scenery=False)
+        elif self.current_mode == 'Scenery':
+            self.clear_entry_fields(aircraft=False, ground=False, scenery=True)
 
         # Set the unstored and unsaved data flags
         self.unstored_data[self.current_mode] = False
@@ -1295,7 +1338,7 @@ class PackBuilderGUI(Frame):
             if unsaved_changes is True:
                 title = "Do you want to close?"
                 msg = "You will lose unsaved work."
-                result = messagebox.askyesno(parent=self.parent, title=title, message=msg)
+                result = messagebox.askyesno(parent=self.parent, title=title, message=msg,default='no')
 
                 if result == 'no':
                     return
@@ -1305,10 +1348,12 @@ class PackBuilderGUI(Frame):
     def assemble_pack(self):
         """This function will take the filepaths, naming and organization."""
 
-        # self.functionality_not_available_popup("assemble_pack")
-
         # Perform dat file identify line validation and compare to stored data.
         if self.validate_pack_structure() is False:
+            print("Invalid Pack Structure")
+            messagebox.showinfo(parent=self.parent,
+                                title="Invalid Pack Structure Detected",
+                                message="Detected errors. Will not assemble pack or write lst file.")
             return
 
         # Ask the user where to export the pack to.
@@ -1316,14 +1361,19 @@ class PackBuilderGUI(Frame):
             folderpath = os.getcwd()
         else:
             # ask the user for the filepath
-            # TODO: Implement this
-            folderpath = os.getcwd()
+            folderpath = filedialog.askdirectory(parent=self.parent,
+                                                 title="Select where the pack should be assembled.")
+            if not folderpath:
+                messagebox.showinfo(parent=self.parent,
+                                    title="Invalid folder selected for pack output",
+                                    message="Invalid folderpath. Defaulting to where the code is located.")
+                folderpath = os.getcwd()
 
         # Perform filepath validation
         if os.path.isdir(folderpath) is False:
-            title = "Invalid Output Folder Selected"
-            msg = "Please select a folder to assemble the Pack"
-            messagebox.showerror(parent=self.parent, title=title, message=msg)
+            messagebox.showerror(parent=self.parent,
+                                 title="Invalid Output Folder Selected",
+                                 message="Please select a folder to assemble the Pack in")
             return
 
         # Get the pack name & username
@@ -1332,19 +1382,27 @@ class PackBuilderGUI(Frame):
             username = "UserName"
         else:
             # Ask the user to provide a pack name
-            # TODO: Implement this
-            pack_name = ""
-            username = self.UserName.get()
-            if len(username) == 0:
-                # Raise an error.
-                pass
-            pass
+            pack_name = simpledialog.askstring(parent=self.parent,
+                                               title="Pack Name",
+                                               message="Please Enter Your Pack's Name")
+            username = self.UserName.get()  # Try to get their stored username
+            if len(username) == 0 or username == self.default_username:
+                # Ask the user to select a username
+                username = simpledialog.askstring(parent=self.parent,
+                                                  title="Enter YSFlight Username",
+                                                  message="Enter your YSFlight username so that the user/[username] folder is properly named")
+                if not username:
+                    messagebox.showerror(parent=self.parent,
+                                         title="Could not determine username for this pack.",
+                                         message="Without a username this pack cannot be assembled.")
+                    return
+
+                self.UserName.set(username)
 
         # Make the pack folder if it doesn't exist
         pack_folder = os.path.join(folderpath, pack_name)
         if os.path.exists(pack_folder) is False:
             os.mkdir(pack_folder)
-
 
         # Make the LST Files
         for prefix, lst_type in zip(self.lst_file_prefixes, self.lst_types):
@@ -1356,7 +1414,16 @@ class PackBuilderGUI(Frame):
 
                 # Generate LST filename
                 filename = "{}{}.lst".format(prefix, pack_name)
-                # TODO: Overwrite detection.
+                filepath = os.path.join(lst_folderpath, filename)
+
+                # Determine if the lst file exists and if we should overwrite it.
+                if os.path.exists(filepath):
+                    answer = messagebox.askyesno(parent=self.parent,
+                                                 title="Existing LST File Detected",
+                                                 message="A previously created {} LST file was found. Do you want to overwrite this LST file?".format(lst_type.upper()),
+                                                 default='no')
+                    if not answer:
+                        return
 
                 # Assemble lst lines
                 lst_lines = list()
@@ -1364,8 +1431,49 @@ class PackBuilderGUI(Frame):
                     lst_lines.append(instance.make_lst_entry(pack_name, username) + "\n")
 
                 # Write the lst file
-                with open(os.path.join(lst_folderpath, filename), mode='w') as lst_file:
+                with open(filepath, mode='w') as lst_file:
                     lst_file.writelines(lst_lines)
+
+        # Create the mod folder
+        mod_folderpath = os.path.join(pack_folder, 'user', username, pack_name)
+        if os.path.exists(mod_folderpath):
+            # Need to ask user if they want to overwrite all files in this directory.
+            answer = messagebox.askyesno(parent=self.parent,
+                                         title="Overwrite Existing {} Folder?".format(pack_name),
+                                         message="Do you want to overwrite all previously compiled files for this mod?",
+                                         default="no")
+
+            if not answer:
+                messagebox.showinfo(parent=self.parent,
+                                    title="Did Not Copy Files",
+                                    message="Did not copy or overwrite files in the existing mod folder.")
+                return
+        try:
+            os.mkdir(mod_folderpath)
+        except:
+            messagebox.showerror(parent=self.parent,
+                                 title="Unable to make Mod Folder",
+                                 message="Unable to make the mod folder to copy files to. Please try again.")
+            return
+
+        # Move the various mod files into the [PackName]/user/[UserName]/PackName] folder.
+        for lst_type in self.lst_types:
+            for instance in self.lst_entries[lst_type].values():
+                source_paths = instance.return_paths()
+                output_paths = [os.path.join(mod_folderpath, lst_type.lower(), os.path.basename(i)) for i in source_paths]
+
+                for source, output in zip(source_paths, output_paths):
+                    try:
+                        shutil.copy(source, output)
+                    except PermissionError:
+                        messagebox.showerror(parent=self.parent,
+                                             title="Permissions Error",
+                                             message="Could not copy file(s) due to insufficient permissions. Please try selecting a different mod folder.")
+                        return
+
+
+
+
 
 
 
